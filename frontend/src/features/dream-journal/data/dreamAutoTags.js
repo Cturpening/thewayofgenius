@@ -1,0 +1,17 @@
+export const DREAM_AUTO_TAGS = [
+  { keyword: "door", tag: "door symbol" },
+  { keyword: "throat", tag: "throat / unspoken" },
+  { keyword: "gut", tag: "gut / grounding" },
+  { keyword: "chest", tag: "chest / heart" },
+  { keyword: "heart", tag: "chest / heart" },
+  { keyword: "spring", tag: "solar plexus" },
+  { keyword: "root", tag: "gut / grounding" },
+  { keyword: "fuzzy", tag: "recall-blocker" },
+  { keyword: "forgot", tag: "recall-blocker" },
+  { keyword: "can't remember", tag: "recall-blocker" },
+  { keyword: "woke up", tag: "waking-activation" },
+  { keyword: "startled", tag: "waking-activation" },
+  { keyword: "jolt", tag: "waking-activation" },
+  { keyword: "clicked", tag: "integration-milestone" },
+  { keyword: "realized", tag: "integration-milestone" },
+];
