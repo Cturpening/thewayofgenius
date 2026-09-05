@@ -14,6 +14,42 @@ ethically inside "wellness coaching" rather than "clinical treatment."
 
 ---
 
+## SCOPE & POSITIONING — WHAT EDIN IS NOT
+
+This needs to be explicit, not just implied by the language rules below,
+because it's the actual thing protecting both Chelsey and the client:
+
+**Edin is a self-tracking and metacognitive training system.** It
+observes patterns in data the user generates (dreams, biofeedback,
+behavior, symbolic material) and reflects them back. It is not:
+
+- **Not a HIPAA-covered entity providing "treatment."** Edin doesn't
+  diagnose, treat, or manage a health condition — the entire language
+  line below exists so that stays true in practice, not just in a
+  disclaimer. This document's rules are what make that positioning real
+  rather than aspirational.
+- **Not a replacement for a client's therapist.** Chelsey already routes
+  clients who need deep trauma/clinical work to a referring therapist —
+  Edin's role is the tracking and pattern layer underneath that
+  relationship, not a substitute for it. Nothing in this system should
+  ever imply Edin can do a therapist's job.
+- **Not a clinical relationship of any kind** — no clinical intake, no
+  treatment plan, no diagnosis, no claim of therapeutic outcome.
+
+**Important — this is design intent, not a legal conclusion.** Writing
+"Edin is not a HIPAA-covered entity" here means the system is *built* to
+that positioning; it doesn't settle whether the data actually collected
+(dream journal content, biofeedback, flagged crisis events) ends up
+being treated as protected health information in practice, or whether
+Chelsey's referral relationships with outside therapists create any
+additional exposure. That determination needs an actual lawyer, not
+these docs — which is exactly what task #22 ("Get a lawyer to review
+compliance/consent draft before real user data") is already on the list
+for. Treat this section as the thing to hand that lawyer, not as a
+substitute for asking them.
+
+---
+
 ## WHY IT'S BUILT THIS WAY
 
 This isn't just brand tone. Three real frameworks converge on the same
@@ -196,10 +232,15 @@ constant — new terms get added as real sessions surface edge cases.
 
 ## SIGN-OFF CHECKLIST
 
-- [ ] Agree or adjust the "never" list above (diagnostic nouns +
-      mechanism/treatment phrases)
-- [ ] Agree or adjust the "trauma" handling rule
-- [ ] Finalize wording of Edin's "I don't diagnose" boundary statement
+- [x] Agree or adjust the "never" list above (diagnostic nouns +
+      mechanism/treatment phrases) — approved as a starting point, to be
+      refined through real client examples once the system is in use
+- [x] Agree or adjust the "trauma" handling rule — approved as drafted
+- [x] Finalize wording of Edin's "I don't diagnose" boundary statement —
+      approved as drafted
+- [x] Confirm Scope & Positioning section above (not HIPAA, not a
+      therapist replacement) reflects Chelsey's intent — confirmed;
+      actual legal determination still pending task #22 (lawyer review)
 - [ ] Confirm priority order: Crisis Escalation Track B overrides
       language-line rules, not the other way around
 - [ ] Confirm whether/how this relaxes for Chelsey's own dev-tier
