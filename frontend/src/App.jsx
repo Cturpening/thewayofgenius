@@ -163,4 +163,106 @@ export default function App() {
             })}
           </div>
 
-          {[
+          {["genetics", "biofeedback", "microbiome", "other"].includes(view) && (
+            <button
+              onClick={() => setView("map")}
+              style={{ marginTop: 10, padding: "6px 14px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12, cursor: "pointer" }}
+            >
+              ← Back to Genius Profile
+            </button>
+          )}
+
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${COLORS.grid}` }}>
+            <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 8 }}>
+              TECHNICAL PROOF — FOR TECH REVIEWERS, NOT PART OF THE CONSUMER EXPERIENCE
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {["science", "user", "edf"].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 10,
+                    border: `1px solid ${view === v ? COLORS.inkDim : COLORS.grid}`,
+                    background: view === v ? `${COLORS.inkDim}22` : "transparent",
+                    color: view === v ? COLORS.ink : COLORS.inkDim,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  {v === "science" ? "Science View" : v === "user" ? "App View" : "Verified on Your File"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
+        {view === "dojo" && <PracticeDojoView constitutionAnswers={constitutionAnswers} setConstitutionAnswers={setConstitutionAnswers} />}
+        {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} />}
+        {view === "genetics" && <GeneticsSubconsciousView />}
+        {view === "library" && <SymbolicLibraryView />}
+        {view === "science" && (
+          <ScienceView mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
+        )}
+        {view === "user" && (
+          <PhoneMock mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
+        )}
+        {view === "edin" && <EdinChatView dreamEntries={dreamEntries} />}
+        {view === "future" && <FutureTechView />}
+        {view === "biofeedback" && <BiofeedbackLabView />}
+        {view === "microbiome" && <MicrobiomeView />}
+        {view === "other" && <OtherLanesView />}
+        {view === "edf" && <VerificationHub />}
+
+        <div style={{ marginTop: 28, fontSize: 11, color: COLORS.inkDim, opacity: 0.7 }}>
+          * Waveforms and band values are representative — modeled on the published characteristics of the
+          45-subject workload dataset and Sleep-EDF clinical staging literature, not a live data pull.
+        </div>
+      </div>
+
+      {/* Persistent Edin access — reachable from any tab, not just the Edin tab itself */}
+      {!edinOpen && (
+        <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          <div style={{
+            background: COLORS.bgPanel, border: `1px solid ${COLORS.gold}55`, borderRadius: 12,
+            padding: "8px 14px", fontSize: 12, color: COLORS.ink, boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+            fontFamily: "Georgia, serif",
+          }}>
+            {greeting}
+          </div>
+          <button
+            onClick={() => setEdinOpen(true)}
+            style={{
+              width: 56, height: 56, borderRadius: "50%", border: "none", cursor: "pointer",
+              padding: 0, overflow: "hidden",
+              boxShadow: `0 4px 18px ${COLORS.gold}66`,
+            }}
+            title="Chat with Edin"
+          >
+            <img src={EDIN_ICON} alt="Edin" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          </button>
+        </div>
+      )}
+      {edinOpen && (
+        <div
+          style={{
+            position: "fixed", bottom: 24, right: 24, zIndex: 50,
+            width: 360, maxWidth: "90vw", maxHeight: "70vh",
+            background: COLORS.bg, border: `1px solid ${COLORS.grid}`, borderRadius: 16,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: `1px solid ${COLORS.grid}` }}>
+            <div style={{ fontSize: 12, color: COLORS.teal, letterSpacing: 0.5 }}>EDIN — AVAILABLE ANYWHERE</div>
+            <button onClick={() => setEdinOpen(false)} style={{ border: "none", background: "transparent", color: COLORS.inkDim, cursor: "pointer", fontSize: 16 }}>×</button>
+          </div>
+          <div style={{ padding: "14px", overflowY: "auto" }}>
+            <EdinChatView dreamEntries={dreamEntries} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
