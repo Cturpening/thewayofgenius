@@ -162,6 +162,9 @@ Visit the URL it prints (usually http://localhost:5173) to see the app.
 - The frontend doesn't call the backend yet — it still runs on the demo
   data baked into the React components. Wiring up real sign-up/login and
   real reads/writes to the database is future work.
-- `flagged_events` exists as a table only. There's no code yet that
-  detects a trigger phrase and writes a row — that's the safety-escalation
-  feature mentioned in the schema, planned for later.
+- `flagged_events` now gets written to: `POST /journal-entries` runs
+  Track B crisis detection (`backend/app/crisis_detection.py`) on every
+  entry. Track A — the softer, pattern-recurrence-based referral prompt
+  from `protocols/03_Crisis_Escalation_Protocol.md` — still doesn't
+  exist; it depends on the cross-modal correlation engine, which hasn't
+  been built.

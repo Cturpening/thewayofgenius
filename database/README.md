@@ -15,7 +15,7 @@ are in the repo root's `SETUP.md`.
 | `dream_journal_entries` | Dream Journal entries: title, lines of text, tags, Edin's reflection note. |
 | `genius_constitution_results` | One row per completed Genius Constitution quiz: raw answers plus the computed orientation/focus/density/touch result. |
 | `follow_through_log` | Whether a user acted on an intention (from a dream, lesson, Constitution session, or coaching). |
-| `flagged_events` | Placeholder for the future safety-escalation feature. No detection logic exists yet — just the data shape (`trigger_phrase_matched`, `user_id`, `timestamp`, `reviewed`, `review_notes`), so it doesn't need to be retrofitted later. |
+| `flagged_events` | Safety-escalation table. `backend/app/crisis_detection.py` writes here now (Track B — explicit self-harm/suicide/harm-to-others language, see `protocols/03_Crisis_Escalation_Protocol.md`). Track A (soft, pattern-recurrence-based referrals) doesn't write here yet — it depends on the cross-modal engine, which isn't built. |
 
 ## Security notes
 

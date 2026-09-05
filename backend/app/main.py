@@ -1,8 +1,14 @@
-from fastapi import FastAPI, HTTPException
+from uuid import UUID
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from app.database import engine
+from app.crisis_detection import classify_crisis_tier, override_message, requires_override
+from app.database import engine, get_db
+from app.models import DreamJournalEntry, FlaggedEvent
+from app.schemas import DreamJournalEntryCreate, DreamJournalEntryOut, DreamJournalEntryResponse
 
 app = FastAPI(title="Edin API", version="0.1.0")
 
@@ -34,3 +40,46 @@ def health_db():
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Database connection failed: {exc}") from exc
     return {"status": "ok", "database": "connected"}
+
+
+@app.post("/journal-entries", response_model=DreamJournalEntryResponse)
+def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends(get_db)):
+    """Create a dream journal entry, running it through Track B crisis
+    detection first (see app/crisis_detection.py). The entry is always
+    saved -- Track B never blocks journaling -- but a Tier 2/3 or
+    harm-to-others match also writes a flagged_events row and returns
+    the fixed crisis-override message for the frontend to surface.
+    """
+    combined_text = " ".join([payload.title or ""] + [line.text for line in payload.lines])
+    tier = classify_crisis_tier(combined_text)
+
+    entry = DreamJournalEntry(
+        user_id=payload.user_id,
+        title=payload.title,
+        lines=[line.model_dump() for line in payload.lines],
+        tags=payload.tags,
+    )
+    db.add(entry)
+
+    crisis_response = None
+    if requires_override(tier):
+        db.add(FlaggedEvent(user_id=payload.user_id, trigger_phrase_matched=tier.value))
+        crisis_response = override_message(tier)
+
+    db.commit()
+    db.refresh(entry)
+
+    return DreamJournalEntryResponse(
+        entry=DreamJournalEntryOut.model_validate(entry),
+        crisis_response=crisis_response,
+    )
+
+
+@app.get("/journal-entries", response_model=list[DreamJournalEntryOut])
+def list_journal_entries(user_id: UUID, db: Session = Depends(get_db)):
+    return (
+        db.query(DreamJournalEntry)
+        .filter(DreamJournalEntry.user_id == user_id)
+        .order_by(DreamJournalEntry.created_at.desc())
+        .all()
+    )
