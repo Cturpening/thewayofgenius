@@ -255,6 +255,55 @@ methodology — from the work itself, not from generic design choices.
 
 ---
 
+## A REAL PRECEDENT ALREADY BUILT
+
+Added from Chelsey's own materials, verified directly — not part of the
+original spec above, but worth the tech team looking at before designing
+from scratch. `chelseys-dream-journal.md` / `dream-journal.html` contains
+an actual, working spiral visualization that does a version of this
+feature already:
+
+- An Archimedean-spiral SVG path, with entry dots placed manually along
+  it — **oldest entry innermost, most recent outermost**
+- Each dot color-coded by thread (five real threads in her own journal:
+  Dad's side/the pool, Mom's side/the pain portal, The Way of
+  Genius/space training, relational patterns, wealth/worth/partnership),
+  with a legend mapping color to thread name
+- A caption stating the state plainly: "Seven entries logged so far, five
+  threads active. A new one just surfaced — wealth, worth, and
+  partnership, felt in the gut as the middle of the ocean."
+- Paired with an "Arc Tracker" section below it, one entry per thread,
+  each stating plainly whether that thread reached "a real completion" or
+  is "active and unfolding... expected to keep circling rather than
+  resolve in one pass"
+
+This is a simpler, flatter shape than the zone/layer/fog-of-war system
+in the spec above, but it's real, already-designed, and uses the exact
+oldest-to-newest spatial logic (center to edge) that a spiral-style
+alternative to the zone map could reuse directly — worth a look before
+committing fully to the zone/fog-of-war approach as the only option.
+
+**The visual language for "well-worn vs. faded" pathways is also already
+written**, from a meditation script: "Picture the self as golden lines,
+running through you, each one carrying a story. Some will glow
+brighter — well-traveled, strong, alive with use. Some dimmer, quieter,
+less visited. Some may even feel broken, or frayed... Pathways used
+often genuinely do strengthen (Hebbian plasticity)."
+(`master-of-perspective-lesson-4-meeting-your-guides.md`) This maps
+directly onto the spec's node-glow states above (dormant/active/glowing)
+and gives real, tested phrasing for how Edin should talk about a dim or
+dormant node without it reading as a judgment on the user.
+
+**Arc-completion trigger language**, relevant to when a zone/node should
+re-render as resolved rather than on a fixed schedule: "The Constitution
+is meant to be reviewed and pivot at real milestones (an arc completing,
+a wisdom moment landing), not on a fixed schedule."
+(`edins-methods-toolbox.md`) Same principle likely applies to the map's
+reveal mechanic — worth checking that the reveal thresholds in this doc
+aren't accidentally schedule-based rather than milestone-based.
+
+---
+
 ## GROUNDING NOTES — HOW THIS MEETS THE CURRENT CODEBASE
 
 Added for the dev team, checked against what's actually built as of this

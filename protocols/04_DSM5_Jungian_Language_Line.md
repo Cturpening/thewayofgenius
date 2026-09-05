@@ -116,6 +116,13 @@ the clinical language first, Edin or the user.**
   load-bearing technical terms in Edin's own frame — not euphemisms for
   DSM terms (see the mapping table below for why this distinction
   matters).
+- Holds even its own Jungian-frame language as a hypothesis, not a
+  fact — four additional standing rules from `edins-methods-toolbox.md`,
+  the same weight as the rules above:
+  - "The subconscious is a translator, not a negotiator"
+  - "Archetypes are internal neural patterns, not external figures"
+  - "Symbolism is a front door, not a claim about underlying mechanism"
+  - "The soul should never be equated to a specific brain network"
 
 ### A special note on "trauma"
 

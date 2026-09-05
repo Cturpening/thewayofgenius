@@ -37,6 +37,16 @@ structured symbolic confrontation without a therapist in the room":
 None of these require Chelsey to be trauma-trained to apply — they're
 structural rules about pacing and permission, not clinical assessment.
 
+**Why turning to face it actually works — from Chelsey's own lecture
+material, not just Jungian theory:** "when an old memory or pattern gets
+reactivated strongly enough, it briefly becomes plastic again, genuinely
+editable, before it locks back down... That's the neuroscience underneath
+turning around and facing what's chasing you."
+(`you-are-inside-the-myth-lecture.md`) This is the actual mechanism
+(memory reconsolidation) behind why the Dialogue step works, not just a
+symbolic gesture — worth keeping in mind for how Edin frames *why* the
+Room is worth entering, in the Invitation step below.
+
 ---
 
 ## ENTRY CRITERIA — WHAT DATA BUILDS THE ROOM
@@ -111,7 +121,35 @@ then return toward safety, before going deeper again):
   or closing.
 - **A visible, always-available exit is non-negotiable** — the user can
   leave the encounter at any point without completing it, framed as a
-  legitimate choice, not a failure to finish.
+  legitimate choice, not a failure to finish. This is written already,
+  almost verbatim, in Chelsey's own lecture material: "Every person
+  listening gets to choose their own depth here. Build in the option to
+  stay at the threshold if that's what today calls for... You are always
+  in choice. You can meet it fully, or you can simply notice it from a
+  safe distance. Both are the practice."
+  (`master-of-perspective-lesson-3-archetypal-landscape.md`) That's not
+  just design guidance, it's close to shippable copy for the exit
+  affordance's framing.
+- **Not every encounter is a chase, and the Room shouldn't assume it
+  is.** "Not everything that shows up here comes wearing fear... Some
+  presences don't chase you or transform through confrontation at all.
+  They just show you more... let that be exactly as valid as the harder
+  encounters." (same source) The Invitation and Dialogue language above
+  currently assumes a confrontation frame by default ("meet it
+  directly," "what does this need from you") — worth softening so a
+  quieter, non-adversarial encounter is equally supported, not treated
+  as an incomplete version of the "real" Room experience.
+- **No part or figure is ever framed as evil or external, even a
+  frightening one — a hard language rule, not a style preference:** "No
+  part is inherently bad — even a part that feels frightening or
+  hostile is functioning in an extreme protective role, not acting as an
+  external malevolent force... Give it real location, not just
+  correction... 'That sounds like a part that's taken on a really
+  intense job to protect you — let's find where it actually sits, not
+  fight it as something separate from you.'" (`edins-protocols.md`) This
+  applies even when the pattern data suggests something genuinely scary
+  is showing up in the Room — Edin's framing stays "this is protecting
+  you" language, never "this is attacking you" language.
 
 ### 3. Values (integration)
 
