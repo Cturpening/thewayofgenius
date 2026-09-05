@@ -15,6 +15,14 @@ uvicorn app.main:app --reload --port 8000
 
 - `GET /health` — liveness check, no database required.
 - `GET /health/db` — readiness check; confirms the app can reach Supabase.
+- `GET /health/ai` — readiness check for Gemini; makes one real, tiny
+  live call to confirm `GEMINI_API_KEY`/`GEMINI_MODEL` actually work
+  right now, not just that they're set. This is the thing to check
+  periodically (not on every page load — it's a real API call each
+  time) so a deprecated or renamed model gets caught quickly instead of
+  silently degrading real reflections to the canned fallback for a
+  while before anyone notices. See "If a Gemini model gets deprecated"
+  below.
 - `POST /journal-entries` — create a dream journal entry. Runs the text
   through Track B crisis detection first (see
   `../protocols/03_Crisis_Escalation_Protocol.md`) — a Tier 2/3 or
@@ -53,6 +61,29 @@ check https://ai.google.dev/gemini-api/docs/models for the current model
 list before setting `GEMINI_MODEL` — that's deliberately not hardcoded
 anywhere in the code, since model names change often enough that a
 hardcoded default risks quietly pointing at a deprecated one.
+
+### If a Gemini model gets deprecated
+
+This does **not** take the app down. Journal entries still save, and
+crisis detection (Track B) is completely unaffected — it's pure
+pattern-matching code with zero Gemini dependency. The only thing that
+degrades is Edin's reflections quietly reverting to the old canned note
+instead of a real generated one, via the same fallback path used when
+Gemini isn't configured at all.
+
+Two things make this manageable rather than a surprise:
+
+- **Google gives real advance notice.** A `-latest`-style alias swaps
+  with only two weeks' email notice, but a named/pinned model (what
+  `GEMINI_MODEL` should be set to — see the note above about not using
+  `-latest`, it's less safe, not more) gets a much longer deprecation
+  window, announced on https://ai.google.dev/gemini-api/docs/deprecations
+  and emailed to the account that owns the API key. Make sure that's an
+  inbox someone actually reads.
+- **Check `GET /health/ai` periodically** (weekly is plenty) rather than
+  waiting to notice a reflection "sounds off." A failing check means the
+  fix is just picking a current model name from the models page and
+  updating `GEMINI_MODEL` — not a rebuild.
 
 ## Running the tests
 

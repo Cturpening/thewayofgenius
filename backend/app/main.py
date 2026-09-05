@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -11,6 +12,8 @@ from app.database import engine, get_db
 from app.edin_ai import EdinAIError, generate_dream_reflection, is_configured as edin_ai_configured
 from app.models import DreamJournalEntry, FlaggedEvent
 from app.schemas import DreamJournalEntryCreate, DreamJournalEntryOut, DreamJournalEntryResponse
+
+logger = logging.getLogger("edin")
 
 app = FastAPI(title="Edin API", version="0.1.0")
 
@@ -44,6 +47,24 @@ def health_db():
     return {"status": "ok", "database": "connected"}
 
 
+@app.get("/health/ai")
+def health_ai():
+    """Readiness check for Edin's AI layer: is Gemini actually configured
+    and working right now, not just "is a key present." Makes one real,
+    tiny live call -- this is the thing to check periodically (not on
+    every page load) to catch a deprecated/renamed model before it's
+    been silently degrading real reflections for a while. See
+    "Edin's AI layer" in README.md.
+    """
+    if not edin_ai_configured():
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY / GEMINI_MODEL not configured")
+    try:
+        generate_dream_reflection("A short test dream, nothing eventful.", [])
+    except EdinAIError as exc:
+        raise HTTPException(status_code=503, detail=f"Gemini call failed: {exc}") from exc
+    return {"status": "ok", "ai": "connected"}
+
+
 @app.post("/journal-entries", response_model=DreamJournalEntryResponse)
 def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends(get_db)):
     """Create a dream journal entry, running it through Track B crisis
@@ -70,8 +91,12 @@ def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends
         # outage never blocks saving a journal entry.
         try:
             edin_note = generate_dream_reflection(combined_text, payload.tags)
-        except EdinAIError:
-            pass
+        except EdinAIError as exc:
+            # Not silent: this is exactly the "Gemini quietly stopped
+            # working and nobody noticed" scenario -- log it loudly so
+            # it shows up in server logs instead of just degrading
+            # invisibly to the canned reflection.
+            logger.warning("Gemini reflection failed, falling back to canned note: %s", exc)
 
     entry = DreamJournalEntry(
         user_id=payload.user_id,
