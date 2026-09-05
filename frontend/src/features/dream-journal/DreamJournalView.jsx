@@ -3,6 +3,7 @@ import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import SpeakButton from "../../components/common/SpeakButton";
 import { detectAutoTags, edinDreamReflection } from "./dreamUtils";
+import { createDreamEntry, updateDreamEntry, deleteDreamEntry } from "./api";
 import BookCover from "./BookCover";
 
 export default function DreamJournalView({ entries, setEntries }) {
@@ -13,6 +14,8 @@ export default function DreamJournalView({ entries, setEntries }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [mode, setMode] = useState("list"); // list | book
   const [bookPage, setBookPage] = useState(-1); // -1 = cover, 0..n-1 = entries
+  const [saving, setSaving] = useState(false);
+  const [crisisMessage, setCrisisMessage] = useState(null);
 
   const allTags = Array.from(new Set(entries.flatMap((e) => e.tags)));
 
@@ -20,29 +23,36 @@ export default function DreamJournalView({ entries, setEntries }) {
     setTitle(""); setBody(""); setTagInput(""); setEditingId(null);
   };
 
-  const saveEntry = () => {
+  const saveEntry = async () => {
     if (!body.trim()) return;
     const manualTags = tagInput.split(",").map((t) => t.trim()).filter(Boolean);
     const autoTags = detectAutoTags(body);
     const tags = Array.from(new Set([...manualTags, ...autoTags]));
     const lines = body.split("\n").filter((l) => l.trim().length > 0).map((text) => ({ text, highlighted: false }));
+    const finalTitle = title.trim() || "Untitled entry";
 
-    if (editingId) {
-      setEntries(entries.map((e) => e.id === editingId
-        ? { ...e, title: title.trim() || "Untitled entry", tags, lines, edited: true }
-        : e));
-    } else {
-      const entry = {
-        id: Date.now(),
-        date: "Just now",
-        title: title.trim() || "Untitled entry",
-        tags,
-        lines,
-        edinNote: edinDreamReflection(body, tags),
-      };
-      setEntries([entry, ...entries]);
+    setSaving(true);
+    try {
+      if (editingId) {
+        const { entry, crisisResponse } = await updateDreamEntry(editingId, { title: finalTitle, tags, lines });
+        setEntries(entries.map((e) => (e.id === editingId ? entry : e)));
+        if (crisisResponse) setCrisisMessage(crisisResponse);
+      } else {
+        const { entry, crisisResponse } = await createDreamEntry({
+          title: finalTitle,
+          tags,
+          lines,
+          edinNote: edinDreamReflection(body, tags),
+        });
+        setEntries([entry, ...entries]);
+        if (crisisResponse) setCrisisMessage(crisisResponse);
+      }
+      resetComposer();
+    } catch (err) {
+      console.error("Failed to save dream journal entry:", err);
+    } finally {
+      setSaving(false);
     }
-    resetComposer();
   };
 
   const startEdit = (entry) => {
@@ -52,25 +62,39 @@ export default function DreamJournalView({ entries, setEntries }) {
     setTagInput(entry.tags.join(", "));
   };
 
-  const deleteEntry = (id) => {
-    setEntries(entries.filter((e) => e.id !== id));
-    if (editingId === id) resetComposer();
+  const deleteEntry = async (id) => {
+    try {
+      await deleteDreamEntry(id);
+      setEntries(entries.filter((e) => e.id !== id));
+      if (editingId === id) resetComposer();
+    } catch (err) {
+      console.error("Failed to delete dream journal entry:", err);
+    }
   };
 
-  const toggleHighlight = (entryId, lineIdx) => {
-    setEntries(entries.map((e) =>
-      e.id === entryId
-        ? { ...e, lines: e.lines.map((l, i) => i === lineIdx ? { ...l, highlighted: !l.highlighted } : l) }
-        : e
-    ));
+  const toggleHighlight = async (entryId, lineIdx) => {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const lines = entry.lines.map((l, i) => i === lineIdx ? { ...l, highlighted: !l.highlighted } : l);
+    setEntries(entries.map((e) => e.id === entryId ? { ...e, lines } : e));
+    try {
+      await updateDreamEntry(entryId, { lines });
+    } catch (err) {
+      console.error("Failed to save highlight:", err);
+    }
   };
 
-  const updateLineText = (entryId, lineIdx, newText) => {
-    setEntries(entries.map((e) =>
-      e.id === entryId
-        ? { ...e, lines: e.lines.map((l, i) => i === lineIdx ? { ...l, text: newText } : l), edited: true }
-        : e
-    ));
+  const updateLineText = async (entryId, lineIdx, newText) => {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const lines = entry.lines.map((l, i) => i === lineIdx ? { ...l, text: newText } : l);
+    setEntries(entries.map((e) => e.id === entryId ? { ...e, lines, edited: true } : e));
+    try {
+      const { crisisResponse } = await updateDreamEntry(entryId, { lines });
+      if (crisisResponse) setCrisisMessage(crisisResponse);
+    } catch (err) {
+      console.error("Failed to save line edit:", err);
+    }
   };
 
   const visibleEntries = activeFilter ? entries.filter((e) => e.tags.includes(activeFilter)) : entries;
@@ -120,6 +144,7 @@ export default function DreamJournalView({ entries, setEntries }) {
                 <div
                   contentEditable
                   suppressContentEditableWarning
+                  spellCheck
                   onBlur={(e) => updateLineText(entry.id, i, e.currentTarget.innerText)}
                   style={{
                     flex: 1, fontFamily: "Georgia, serif", fontSize: 16, lineHeight: 1.85, color: COLORS.ink,
@@ -173,6 +198,21 @@ export default function DreamJournalView({ entries, setEntries }) {
         Click any line in a saved entry to highlight it.
       </div>
 
+      {crisisMessage && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>{crisisMessage}</div>
+          </div>
+          <button
+            onClick={() => setCrisisMessage(null)}
+            style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
+          >
+            I've seen this
+          </button>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           onClick={() => { setMode("book"); setBookPage(-1); }}
@@ -187,6 +227,7 @@ export default function DreamJournalView({ entries, setEntries }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Entry title (optional)"
+          spellCheck
           style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none" }}
         />
         <textarea
@@ -194,20 +235,23 @@ export default function DreamJournalView({ entries, setEntries }) {
           onChange={(e) => setBody(e.target.value)}
           placeholder="Write it out, one line per thought or beat of the dream..."
           rows={5}
+          spellCheck
           style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none", resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }}
         />
         <input
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
           placeholder="Add tags, comma separated (Edin adds a few more automatically)"
+          spellCheck
           style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
         />
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={saveEntry}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: "pointer" }}
+            disabled={saving}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
           >
-            {editingId ? "Save Changes" : "Save Entry"}
+            {saving ? "Saving..." : editingId ? "Save Changes" : "Save Entry"}
           </button>
           {editingId && (
             <button

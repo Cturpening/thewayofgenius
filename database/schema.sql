@@ -155,18 +155,23 @@ create policy "Users manage their own follow-through log"
 -- ---------------------------------------------------------------------------
 -- Flagged events (safety escalation)
 --
--- Placeholder data structure for a future safety-escalation feature: when
--- something a user writes matches a concerning trigger phrase, a row gets
--- logged here for review. No detection logic exists yet -- this table only
--- exists so the shape is already in place.
+-- Detection/logging half of the safety-escalation feature (Track B): when
+-- something a user writes crosses the hard-override threshold (explicit
+-- self-harm/suicide ideation with intent, or harm-to-others intent), a row
+-- gets logged here for review. See backend/app/crisis_detection.py and
+-- protocols/03_Crisis_Escalation_Protocol.md for the tiering and the fixed
+-- override message shown to the user when it fires. Wired into dream
+-- journal entries and follow-through log notes/intentions.
 --
 -- Deliberately locked down harder than the other tables: end users should
 -- never be able to read, edit, or delete their own flagged events through
--- the app. Only the backend (using Supabase's service_role key, which
--- bypasses RLS) should write to this table, and only a future
--- staff/reviewer role should read it. RLS is enabled with NO policies
--- below, which means the anon/authenticated Supabase keys get zero access
--- by default -- this is intentional, not an oversight.
+-- the app. The backend (see backend/app/main.py) connects to Postgres
+-- directly rather than through PostgREST, so it writes here with the
+-- DATABASE_URL connection's own privileges regardless of RLS; only a
+-- future staff/reviewer role should read it. RLS is enabled with NO
+-- policies below, which means the anon/authenticated Supabase keys (e.g.
+-- a direct frontend-to-Supabase call, now or in the future) get zero
+-- access by default -- this is intentional, not an oversight.
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.flagged_events (

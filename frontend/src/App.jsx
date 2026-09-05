@@ -8,7 +8,7 @@ import BiofeedbackLabView from "./features/planned/BiofeedbackLabView";
 import MicrobiomeView from "./features/planned/MicrobiomeView";
 import OtherLanesView from "./features/planned/OtherLanesView";
 import GeneticsSubconsciousView from "./features/planned/GeneticsSubconsciousView";
-import { INITIAL_DREAM_ENTRIES } from "./features/dream-journal/data/initialDreamEntries";
+import { fetchDreamEntries } from "./features/dream-journal/api";
 import GoalsCalendarView from "./features/goals-calendar/GoalsCalendarView";
 import SymbolicLibraryView from "./features/library/SymbolicLibraryView";
 import { CONSTITUTION_SCENARIOS } from "./features/genius-constitution/data/constitutionData";
@@ -17,18 +17,32 @@ import GeniusProfileHub from "./features/genius-profile/GeniusProfileHub";
 import FutureTechView from "./features/planned/FutureTechView";
 import EdinChatView from "./features/chat/EdinChatView";
 import { EDIN_GREETINGS } from "./features/chat/data/greetings";
+import { useAuth } from "./features/auth/useAuth";
+import AuthView from "./features/auth/AuthView";
+import { supabase } from "./lib/supabaseClient";
 
 export default function App() {
+  const session = useAuth();
   const [mode, setMode] = useState("workload"); // workload | sleep
   const [view, setView] = useState("dojo"); // map | science | user | ...
   const [workloadKey, setWorkloadKey] = useState("rest");
   const [sleepKey, setSleepKey] = useState("deep");
   const [edinOpen, setEdinOpen] = useState(false);
   const [greeting] = useState(() => EDIN_GREETINGS[Math.floor(Math.random() * EDIN_GREETINGS.length)]);
-  const [dreamEntries, setDreamEntries] = useState(INITIAL_DREAM_ENTRIES);
+  const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionAnswers, setConstitutionAnswers] = useState([]);
   const [newUserMode, setNewUserMode] = useState(true);
   const [simulatedDay, setSimulatedDay] = useState(1);
+
+  useEffect(() => {
+    if (!session) {
+      setDreamEntries([]);
+      return;
+    }
+    fetchDreamEntries()
+      .then(setDreamEntries)
+      .catch((err) => console.error("Failed to load dream journal entries:", err));
+  }, [session]);
 
   const constitutionTaken = constitutionAnswers.length >= CONSTITUTION_SCENARIOS.length;
   const TAB_UNLOCK_DAY = { dojo: 1, edin: 1, map: 1, goals: 8, library: 22, future: 30 };
@@ -45,6 +59,13 @@ export default function App() {
   const states = mode === "workload" ? WORKLOAD_STATES : SLEEP_STATES;
   const activeKey = mode === "workload" ? workloadKey : sleepKey;
   const setActiveKey = mode === "workload" ? setWorkloadKey : setSleepKey;
+
+  if (session === undefined) {
+    return <div style={{ padding: 40, color: COLORS.inkDim, fontSize: 13 }}>Loading...</div>;
+  }
+  if (session === null) {
+    return <AuthView />;
+  }
 
   return (
     <div
@@ -93,6 +114,15 @@ export default function App() {
               ))}
             </div>
           )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11.5, color: COLORS.inkDim }}>
+            Logged in as {session.user.email}
+            <button
+              onClick={() => supabase.auth.signOut()}
+              style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 11, cursor: "pointer" }}
+            >
+              Log out
+            </button>
+          </div>
           <div style={{
             display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap",
             marginBottom: 4, padding: "10px 14px", borderRadius: 10, background: COLORS.bgPanelAlt,

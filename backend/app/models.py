@@ -72,8 +72,11 @@ class FollowThroughLogEntry(Base):
 
 
 class FlaggedEvent(Base):
-    """Safety-escalation placeholder — see database/schema.sql for the full
-    explanation. No detection logic writes to this yet."""
+    """Safety-escalation log — see database/schema.sql and
+    app/crisis_detection.py (Track B) for the full explanation. Written
+    directly via this ORM model from app/main.py; this backend connects to
+    Postgres directly (not through PostgREST), so RLS is not the
+    enforcement boundary for this write path."""
 
     __tablename__ = "flagged_events"
     __table_args__ = {"schema": "public"}

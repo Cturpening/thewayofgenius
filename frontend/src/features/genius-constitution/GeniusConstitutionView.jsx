@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { COLORS } from "../../theme/tokens";
 import { CHALLENGE_PROMPTS, CONSTITUTION_SCENARIOS, DAILY_LIFE_NOTE, DENSITY_NOTES, DOMINANT_COLOR, DOMINANT_LABEL, TOUCH_NOTES, TRIFECTA_LAYER } from "./data/constitutionData";
 import { computeConstitutionResult, pieSlicePath } from "./constitutionUtils";
+import { createConstitutionResult, updateConstitutionIntention } from "./api";
 
 export default function GeniusConstitutionView({ answers, setAnswers }) {
   const done = answers.length >= CONSTITUTION_SCENARIOS.length;
@@ -9,10 +10,25 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
   const [history, setHistory] = useState([]);
   const [intention, setIntention] = useState("");
   const [savedIntention, setSavedIntention] = useState("");
+  const [savedResultId, setSavedResultId] = useState(null);
+  const [customAnswer, setCustomAnswer] = useState("");
+  const [editingIntention, setEditingIntention] = useState(false);
   const prevDoneRef = useRef(false);
 
   const handleAnswer = (value) => {
     setAnswers([...answers, value]);
+    setCustomAnswer("");
+  };
+
+  const saveIntention = () => {
+    const trimmed = intention.trim();
+    if (!trimmed) return;
+    setSavedIntention(trimmed);
+    setEditingIntention(false);
+    if (savedResultId) {
+      updateConstitutionIntention(savedResultId, trimmed)
+        .catch((err) => console.error("Failed to save intention:", err));
+    }
   };
 
   const { pct, dominant, focusAnswer, densityAnswer, touchAnswer, path } = computeConstitutionResult(answers);
@@ -25,6 +41,9 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
   useEffect(() => {
     if (done && !prevDoneRef.current) {
       setHistory((h) => [...h, { n: h.length + 1, dominant, pct, focus: focusAnswer }]);
+      createConstitutionResult({ answers, pct, dominant, focusAnswer, densityAnswer, touchAnswer })
+        .then((result) => setSavedResultId(result.id))
+        .catch((err) => console.error("Failed to save Genius Constitution result:", err));
     }
     prevDoneRef.current = done;
   }, [done, dominant]);
@@ -67,6 +86,27 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
                 {o.text}
               </button>
             ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                value={customAnswer}
+                onChange={(e) => setCustomAnswer(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && customAnswer.trim() && handleAnswer(customAnswer.trim())}
+                placeholder="Or write your own answer..."
+                spellCheck
+                style={{ flex: 1, padding: "12px 16px", borderRadius: 10, border: `1px dashed ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none" }}
+              />
+              <button
+                onClick={() => customAnswer.trim() && handleAnswer(customAnswer.trim())}
+                disabled={!customAnswer.trim()}
+                style={{
+                  padding: "12px 16px", borderRadius: 10, border: `1px solid ${COLORS.grid}`,
+                  background: "transparent", color: customAnswer.trim() ? COLORS.ink : COLORS.inkDim,
+                  fontSize: 13, cursor: customAnswer.trim() ? "pointer" : "default",
+                }}
+              >
+                Use this
+              </button>
+            </div>
           </div>
           <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginTop: 16 }}>Scenario {step + 1} of {CONSTITUTION_SCENARIOS.length}</div>
         </div>
@@ -168,28 +208,47 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
             <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 10 }}>
               YOU CHOOSE WHERE THIS GOES NEXT
             </div>
-            {savedIntention ? (
-              <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5, fontStyle: "italic" }}>"{savedIntention}"</div>
+            {savedIntention && !editingIntention ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5, fontStyle: "italic", flex: 1 }}>"{savedIntention}"</div>
+                <button
+                  onClick={() => { setIntention(savedIntention); setEditingIntention(true); }}
+                  style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 10.5, cursor: "pointer", flexShrink: 0 }}
+                >
+                  Edit
+                </button>
+              </div>
             ) : (
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   value={intention}
                   onChange={(e) => setIntention(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && intention.trim() && saveIntention()}
                   placeholder="How do you want this to show up for you next?"
+                  autoFocus={editingIntention}
+                  spellCheck
                   style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
                 />
                 <button
-                  onClick={() => { if (intention.trim()) setSavedIntention(intention.trim()); }}
+                  onClick={saveIntention}
                   style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: COLORS.gold, color: "#1C2E24", fontSize: 12.5, cursor: "pointer" }}
                 >
                   Save
                 </button>
+                {editingIntention && (
+                  <button
+                    onClick={() => { setIntention(""); setEditingIntention(false); }}
+                    style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12.5, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           <button
-            onClick={() => { setAnswers([]); setSavedIntention(""); setIntention(""); }}
+            onClick={() => { setAnswers([]); setSavedIntention(""); setIntention(""); setSavedResultId(null); setCustomAnswer(""); setEditingIntention(false); }}
             style={{ marginTop: 16, padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12, cursor: "pointer" }}
           >
             ↺ Try different answers
