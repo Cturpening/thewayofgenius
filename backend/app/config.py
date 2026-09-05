@@ -12,8 +12,16 @@ class Settings(BaseSettings):
 
     database_url: str = ""
     environment: str = "development"
+    # Which provider is primary. The other provider, if configured, is
+    # used as an automatic backup when the primary fails -- see
+    # app/edin_ai.py.
+    ai_provider: str = "gemini"
+
     gemini_api_key: str = ""
     gemini_model: str = ""
+
+    anthropic_api_key: str = ""
+    anthropic_model: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
