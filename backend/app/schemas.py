@@ -6,6 +6,7 @@ temporary shape, not a design decision -- it goes away once real
 sign-up/login exists.
 """
 
+from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
@@ -22,6 +23,10 @@ class DreamJournalEntryCreate(BaseModel):
     title: Optional[str] = None
     lines: List[DreamLine] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
+    # Generated client-side today (see frontend/src/features/dream-journal/dreamUtils.js)
+    # -- there's no live model producing this yet, so it's passed in rather
+    # than computed here.
+    edin_note: Optional[str] = None
 
 
 class DreamJournalEntryOut(BaseModel):
@@ -31,6 +36,7 @@ class DreamJournalEntryOut(BaseModel):
     lines: List[DreamLine]
     tags: List[str]
     edin_note: Optional[str] = None
+    created_at: datetime
 
     model_config = {"from_attributes": True}
 

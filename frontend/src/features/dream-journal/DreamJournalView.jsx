@@ -3,9 +3,10 @@ import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import SpeakButton from "../../components/common/SpeakButton";
 import { detectAutoTags, edinDreamReflection } from "./dreamUtils";
+import { createJournalEntry, getOrCreateUserId } from "../../lib/api";
 import BookCover from "./BookCover";
 
-export default function DreamJournalView({ entries, setEntries }) {
+export default function DreamJournalView({ entries, setEntries, backendConnected }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [tagInput, setTagInput] = useState("");
@@ -13,6 +14,8 @@ export default function DreamJournalView({ entries, setEntries }) {
   const [activeFilter, setActiveFilter] = useState(null);
   const [mode, setMode] = useState("list"); // list | book
   const [bookPage, setBookPage] = useState(-1); // -1 = cover, 0..n-1 = entries
+  const [saving, setSaving] = useState(false);
+  const [crisisMessage, setCrisisMessage] = useState(null);
 
   const allTags = Array.from(new Set(entries.flatMap((e) => e.tags)));
 
@@ -20,7 +23,11 @@ export default function DreamJournalView({ entries, setEntries }) {
     setTitle(""); setBody(""); setTagInput(""); setEditingId(null);
   };
 
-  const saveEntry = () => {
+  // Editing, highlighting, and deleting stay local-only for now -- the
+  // backend only has create/list endpoints so far, no update/delete.
+  // Only creating a brand-new entry round-trips to the backend, since
+  // that's the one that needs to run through Track B crisis detection.
+  const saveEntry = async () => {
     if (!body.trim()) return;
     const manualTags = tagInput.split(",").map((t) => t.trim()).filter(Boolean);
     const autoTags = detectAutoTags(body);
@@ -31,18 +38,39 @@ export default function DreamJournalView({ entries, setEntries }) {
       setEntries(entries.map((e) => e.id === editingId
         ? { ...e, title: title.trim() || "Untitled entry", tags, lines, edited: true }
         : e));
-    } else {
-      const entry = {
-        id: Date.now(),
-        date: "Just now",
-        title: title.trim() || "Untitled entry",
-        tags,
-        lines,
-        edinNote: edinDreamReflection(body, tags),
-      };
-      setEntries([entry, ...entries]);
+      resetComposer();
+      return;
     }
-    resetComposer();
+
+    const edinNote = edinDreamReflection(body, tags);
+    const entryTitle = title.trim() || "Untitled entry";
+
+    if (!backendConnected) {
+      // Demo/offline mode -- no backend to save to, so this stays exactly
+      // as it worked before wiring the API in.
+      setEntries([{ id: Date.now(), date: "Just now", title: entryTitle, tags, lines, edinNote }, ...entries]);
+      resetComposer();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { entry, crisisResponse } = await createJournalEntry({
+        userId: getOrCreateUserId(),
+        title: entryTitle,
+        lines,
+        tags,
+        edinNote,
+      });
+      setEntries([entry, ...entries]);
+      if (crisisResponse) setCrisisMessage(crisisResponse);
+      resetComposer();
+    } catch (err) {
+      console.error("Failed to save journal entry:", err);
+      alert("Couldn't reach the backend to save that entry. It hasn't been saved -- check that the server's running and try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const startEdit = (entry) => {
@@ -171,7 +199,23 @@ export default function DreamJournalView({ entries, setEntries }) {
         Your dream and work journal — fully yours to write, tag, highlight, and edit. Edin reads every
         entry and reflects back a short note, same as a real coach would, but never rewrites your words.
         Click any line in a saved entry to highlight it.
+        {!backendConnected && " (Not connected to the backend right now — entries are saving locally in this browser only.)"}
       </div>
+
+      {crisisMessage && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>{crisisMessage}</div>
+          </div>
+          <button
+            onClick={() => setCrisisMessage(null)}
+            style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
+          >
+            I've seen this
+          </button>
+        </div>
+      )}
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
@@ -205,9 +249,10 @@ export default function DreamJournalView({ entries, setEntries }) {
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={saveEntry}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: "pointer" }}
+            disabled={saving}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
           >
-            {editingId ? "Save Changes" : "Save Entry"}
+            {saving ? "Saving..." : editingId ? "Save Changes" : "Save Entry"}
           </button>
           {editingId && (
             <button

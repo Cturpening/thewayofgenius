@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
@@ -58,6 +59,7 @@ def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends
         title=payload.title,
         lines=[line.model_dump() for line in payload.lines],
         tags=payload.tags,
+        edin_note=payload.edin_note,
     )
     db.add(entry)
 
@@ -66,7 +68,22 @@ def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends
         db.add(FlaggedEvent(user_id=payload.user_id, trigger_phrase_matched=tier.value))
         crisis_response = override_message(tier)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # Most likely cause today: user_id doesn't exist in auth.users yet.
+        # There's no real sign-up/login wired up (see SETUP.md), so this
+        # will happen constantly during dev/testing -- surfacing it as a
+        # clear 400 instead of an unhandled 500 matters, because an
+        # unhandled exception here loses its CORS headers, which makes
+        # the browser report a confusing "blocked by CORS policy" error
+        # that has nothing to do with CORS.
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Could not save entry -- user_id doesn't match a real user.",
+        ) from exc
+
     db.refresh(entry)
 
     return DreamJournalEntryResponse(

@@ -17,6 +17,7 @@ import GeniusProfileHub from "./features/genius-profile/GeniusProfileHub";
 import FutureTechView from "./features/planned/FutureTechView";
 import EdinChatView from "./features/chat/EdinChatView";
 import { EDIN_GREETINGS } from "./features/chat/data/greetings";
+import { fetchJournalEntries, getOrCreateUserId } from "./lib/api";
 
 export default function App() {
   const [mode, setMode] = useState("workload"); // workload | sleep
@@ -26,9 +27,27 @@ export default function App() {
   const [edinOpen, setEdinOpen] = useState(false);
   const [greeting] = useState(() => EDIN_GREETINGS[Math.floor(Math.random() * EDIN_GREETINGS.length)]);
   const [dreamEntries, setDreamEntries] = useState(INITIAL_DREAM_ENTRIES);
+  const [backendConnected, setBackendConnected] = useState(false);
   const [constitutionAnswers, setConstitutionAnswers] = useState([]);
   const [newUserMode, setNewUserMode] = useState(true);
   const [simulatedDay, setSimulatedDay] = useState(1);
+
+  // If the backend is up, real journal entries replace the illustrative
+  // demo ones (even if that's an empty list for a brand-new user) so
+  // there's no mixing of real and fake data. If it's not running --
+  // which is fine, the app is still fully usable as a demo -- the
+  // hardcoded INITIAL_DREAM_ENTRIES stay as they were.
+  useEffect(() => {
+    const userId = getOrCreateUserId();
+    fetchJournalEntries(userId)
+      .then((entries) => {
+        setDreamEntries(entries);
+        setBackendConnected(true);
+      })
+      .catch(() => {
+        setBackendConnected(false);
+      });
+  }, []);
 
   const constitutionTaken = constitutionAnswers.length >= CONSTITUTION_SCENARIOS.length;
   const TAB_UNLOCK_DAY = { dojo: 1, edin: 1, map: 1, goals: 8, library: 22, future: 30 };
@@ -200,7 +219,7 @@ export default function App() {
 
         {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
         {view === "dojo" && <PracticeDojoView constitutionAnswers={constitutionAnswers} setConstitutionAnswers={setConstitutionAnswers} />}
-        {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} />}
+        {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} backendConnected={backendConnected} />}
         {view === "genetics" && <GeneticsSubconsciousView />}
         {view === "library" && <SymbolicLibraryView />}
         {view === "science" && (
