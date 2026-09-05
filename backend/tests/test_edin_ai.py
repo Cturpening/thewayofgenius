@@ -31,8 +31,12 @@ def test_ai_provider_claude_swaps_primary_and_backup(monkeypatch):
 
 
 def test_unconfigured_raises_edin_ai_error(monkeypatch):
+    # Explicitly set to "" rather than delenv: an OS env var (even empty)
+    # takes priority over a value loaded from a real backend/.env file, so
+    # this stays correct for a dev machine with real keys configured, not
+    # just a fresh clone with no .env at all.
     for var in ["GEMINI_API_KEY", "GEMINI_MODEL", "ANTHROPIC_API_KEY", "ANTHROPIC_MODEL"]:
-        monkeypatch.delenv(var, raising=False)
+        monkeypatch.setenv(var, "")
     _clear_settings_cache()
     assert is_configured() is False
     try:
