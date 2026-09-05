@@ -2,10 +2,11 @@
 ## Document 10 — For Claude Code / Development Team
 **Owner: Chelsey Turpening Coxsey, The Way of Genius™ — Confidential**
 
-**Status: DRAFT — this one especially needs your correction. Voice is the
-most "you" thing in this whole platform, and I'm working from real
-material, not a guess, but I'm not you. Push back hard on anything that
-doesn't sound right.**
+**Status: LIVING BASELINE — approved by Chelsey as good enough to build
+from now, with the explicit understanding that voice isn't a
+one-time-lock document. This refines over time as Chelsey trains Edin
+directly, not just through a spec review. Treat every rule below as
+current-best-guess, not permanent.**
 
 This answers task #23. Three docs (03, 05, 06) currently have crisis and
 referral scripts marked "needs Chelsey's voice" — this is what settles
@@ -110,24 +111,32 @@ document.
 
 ---
 
-## OPEN QUESTION FOR YOU
+## HOW THIS ACTUALLY GETS REFINED
 
-This document guessed at a real pattern from real material, but it's a
-guess. The one thing worth confirming directly: does Edin's voice
-actually match Register 2 as described, or is there a third thing this
-missed entirely? You're the only one who can answer that — everything
-above is inference, not something you stated outright.
+Confirmed approach: this document is the starting shape, not the final
+one. The real refinement happens through Chelsey training Edin directly
+over time -- real sessions, real corrections in the moment, real
+examples of what lands and what doesn't -- the same way the DSM-5/
+Jungian language line (`04_DSM5_Jungian_Language_Line.md`) is expected to
+get refined "through real client examples" rather than fully nailed down
+in advance. Voice is the same kind of thing: better shaped by ongoing
+contact than by a longer document written in one sitting.
+
+That means: build against Register 2 and the "cut on sight" list as they
+stand now, but expect them to move. Nothing here should be treated as
+load-bearing in the way the crisis-safety rules are -- if Chelsey's
+actual training of Edin pulls the voice somewhere this document didn't
+predict, the training wins, not the doc.
 
 ---
 
 ## SIGN-OFF CHECKLIST
 
-- [ ] Confirm or correct: Edin's voice should live in Register 2
-      (structured/teaching), not Register 1 (fast/conversational)
-- [ ] Confirm or correct the "cut on sight" phrase list above
-- [ ] Flag any real phrases/rhythms from your own speech this document
-      missed
+- [x] Confirm or correct: Edin's voice should live in Register 2
+      (structured/teaching), not Register 1 (fast/conversational) --
+      approved as the working baseline
 - [ ] Decide whether the existing draft scripts (crisis override,
       referral prompt, Shadow Room invitation, diagnosis boundary line)
       get rewritten against this voice, or stay as-is for content-accuracy
-      reasons (crisis wording especially)
+      reasons (crisis wording especially) -- not urgent, can wait for
+      Chelsey's ongoing training of Edin to settle this naturally
