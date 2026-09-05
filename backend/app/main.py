@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
 from app.database import engine, get_db
+from app.edin_ai import EdinAIError, generate_dream_reflection, is_configured as edin_ai_configured
 from app.models import DreamJournalEntry, FlaggedEvent
 from app.schemas import DreamJournalEntryCreate, DreamJournalEntryOut, DreamJournalEntryResponse
 
@@ -54,16 +55,33 @@ def create_journal_entry(payload: DreamJournalEntryCreate, db: Session = Depends
     combined_text = " ".join([payload.title or ""] + [line.text for line in payload.lines])
     tier = classify_crisis_tier(combined_text)
 
+    crisis_response = None
+    edin_note = payload.edin_note
+    if requires_override(tier):
+        # Track B fires. Gemini is never called for this entry -- the
+        # crisis response takes over the interaction entirely, per
+        # 03_Crisis_Escalation_Protocol.md and 05_Shadow_Encounter_Room.md.
+        # Whatever reflection the frontend sent (if any) is discarded.
+        edin_note = None
+    elif edin_ai_configured():
+        # Not a crisis entry, and Gemini is set up -- generate a real
+        # reflection instead of using the frontend's canned one. Falls
+        # back to whatever was passed in if the call fails, so a Gemini
+        # outage never blocks saving a journal entry.
+        try:
+            edin_note = generate_dream_reflection(combined_text, payload.tags)
+        except EdinAIError:
+            pass
+
     entry = DreamJournalEntry(
         user_id=payload.user_id,
         title=payload.title,
         lines=[line.model_dump() for line in payload.lines],
         tags=payload.tags,
-        edin_note=payload.edin_note,
+        edin_note=edin_note,
     )
     db.add(entry)
 
-    crisis_response = None
     if requires_override(tier):
         db.add(FlaggedEvent(user_id=payload.user_id, trigger_phrase_matched=tier.value))
         crisis_response = override_message(tier)
