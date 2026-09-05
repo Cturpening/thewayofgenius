@@ -20,6 +20,17 @@ processing. Signal versus noise. The distinction matters because
 coherence dreams carry different data weight in cross-modal analysis and
 trigger different responses from Edin.
 
+**This isn't a gap invented for this document — Chelsey had already
+named it as an open placeholder in her own materials**, twice: "Real
+thresholds for several fields (e.g. what counts as a 'coherence dream,'
+arc completion criteria) — currently placeholders in the methodology"
+(`edin-backend-brief.md`), and "exact coherence-dream criteria, tagging
+density rules, arc-grounding cutoffs [...] gets flagged to her the same
+way a clinical-safety concern would" (`edins-methods-toolbox.md`). The
+rest of this document is the actual answer to that flag, pulling
+directly from those source materials rather than reconstructing the
+concept from scratch.
+
 ---
 
 ## PART 0 — EDIN AS FLASHLIGHT: BEYOND OBJECT SYMBOLS
@@ -48,6 +59,31 @@ as to object symbols. A pain story that keeps arriving at the same
 archetype experience is a coherence signal the same way a recurring
 object symbol is — just coming through a different door.
 
+**The part/archetype distinction, in Chelsey's own words:** "Parts play
+functional roles. Protective, relational, sometimes surprisingly
+literal... Archetypes are something else. Neural attractors, patterns
+tending which pathways in you deepen and which stay quiet. Different
+roles. Same shared ecosystem." (`parts-archetypes-episode-1-the-ecosystem.md`)
+— parts and archetypes aren't the same tag type wearing different names,
+they're genuinely different things, and the tag schema should keep them
+distinguishable, not collapse them into one "symbolic figure" bucket.
+
+**Not everything needs to be forced into a category.** "Don't force a
+single framework onto what shows up. Some may feel like IFS parts. Some
+like classical archetypes. Some won't map onto any existing category —
+recognizable across sessions as something that belongs distinctly to you
+and no one else's framework." (`master-of-perspective-lesson-4-meeting-your-guides.md`)
+— the tag-type field needs a real fourth option (personal/unclassified),
+not just symbol/part/archetype as a forced-choice.
+
+**A part isn't just a label — it carries its own structured data.**
+"Each named part is its own nervous-system signature (a biofeedback
+node, not just a metaphor) — tracks how each part feels in the body
+(temperature, tension, pulse), its tone/color/costume, and its emotional
+message. Parts self-reveal... Edin asks and notices, never assigns."
+(`edins-methods-toolbox.md`) — when the tag type is "part," it should
+carry (or link to) that structured profile, not just a bare tag string.
+
 ---
 
 ## PART 1 — QUALITATIVE MARKERS (From Clinical Practice)
@@ -57,6 +93,34 @@ work. Edin uses these as the qualitative framework for assessing
 coherence. The AI cannot detect these directly — they come through the
 user's own language in recall sessions, which Edin reads for these
 markers.
+
+**The signal-vs-noise distinction, in Chelsey's own words:** "not
+everything that surfaces in this window is signal. Some of it really is
+just noise — random neural firing, nothing underneath it. Learning to
+tell the difference between noise and the high-value architecture
+actually worth translating... is its own skill."
+(`subconscious-cartography-hypnagogic-lecture.md`) This is the actual
+thing "coherence" is being measured against — not "is this dream
+interesting" but "is this dream organizing something, or is it noise."
+
+**Two real worked examples, straight from Chelsey's own dream journal**
+(`chelseys-dream-journal.md` / `dream-journal.html`) — genuinely useful
+as training examples for what a coherence dream looks like versus an
+ordinary processing entry:
+- **Coherent/complete:** "The Ancestral Water" — a box of light,
+  death/release, ancestors giving new life — logged as "Felt like a real
+  completion, not just another lap of the spiral."
+- **Still-processing/non-coherent:** "My Mother's Portal" — logged as
+  "Perceptual. Expect this one to keep unfolding, not resolve in one
+  pass." Not every dream needs to resolve, and that's not a failure —
+  see Marker 4 below.
+
+Her journal's own Arc Tracker also tags each ongoing thread with a
+simple status — `ongoing` vs. `completed` — per thread (e.g. "Dad's
+side / the pool: Reached a real completion" vs. "Mom's side / the pain
+portal: Active and unfolding... expected to keep circling rather than
+resolve in one pass"). That's a real, already-in-use status enum worth
+lifting directly into the data model rather than inventing a new one.
 
 ### Marker 1 — Fragment to Coherence Movement
 
@@ -112,6 +176,29 @@ transformation markers. Edin compares current entry against previous
 entries of the same pattern tag to assess whether the emotional
 intensity or somatic location has shifted.
 
+**Important correction to the recurrence model this implies — flagging
+against `03_Crisis_Escalation_Protocol.md`.** The loop-vs-coherence-cycle
+distinction here isn't about a fixed count. Chelsey's own framing: "The
+Fibonacci (spiral model) — the underlying feeling/meaning under a symbol
+stays constant even as its surface form changes. Each full return to a
+theme deepens understanding rather than repeating it... No fixed
+population-level threshold — reflects each user's own personal baseline."
+(`edins-methods-toolbox.md`) The Crisis Escalation Protocol's Track A
+loop definition currently uses a fixed rule (3+ separate 14-day windows,
+~6 weeks) as a first-pass, implementation-friendly proxy. That's fine as
+a starting default, but it's explicitly *not* what the real methodology
+says — the real rule is personal-baseline-relative, not a fixed
+population number. Worth Chelsey's explicit call on whether the fixed
+proxy stays as a reasonable engineering approximation for now, or
+whether the personal-baseline version needs to be built from the start.
+
+Also worth noting directly: "A user stuck in an unresolved loop, or
+losing grounding in the symbolic work, is the signal to actively tighten
+that rope... Not every user arcs to completion. That's real information,
+not failure." (`edins-protocols.md`) — a loop that never resolves isn't
+automatically a red flag on its own; it's data, same as the "My Mother's
+Portal" example above.
+
 ### Marker 5 — The Dream That Arrives as an Answer
 
 The dream arrives as a response to something the user has been carrying
@@ -144,6 +231,25 @@ data.
 | Emotional intensity | Between 5 and 8 — notable but not crisis level | emotional_intensity 5-8 |
 | Recall completeness | Full or substantial | recall_completeness = Full or Partial (not Fragment) |
 | Tone-content divergence | Tone calm/positive with narrative intensity markers | emotional_tone Positive/Neutral + intensity language in dream_narrative |
+
+**Two more concrete thresholds already drafted in `edins-methods-toolbox.md`,
+not previously captured here — real numbers, not placeholders:**
+
+- **Recurring symbol → biofeedback session:** the same pattern tag
+  appearing 3+ times in 14 days doesn't just trigger cross-modal
+  analysis (per `02_CrossModal_Triggers_Spec.md`) — it also triggers a
+  Biofeedback Lab "Build the Map" session specifically for that symbol.
+- **High emotional intensity → same-day lingering prompt:** emotional
+  intensity ≥7 on a dream entry triggers a same-day alpha/theta
+  lingering prompt, independent of whether the entry also qualifies as a
+  coherence dream.
+- **When a symbol's meaning counts as "confirmed":** "a symbol's decoded
+  meaning only counts as confirmed when the user self-identifies it, a
+  coach validates it, or it's appeared consistently 5+ times without
+  ambiguity." (`edins-protocols.md`) This is the rule for when an entry
+  in the Symbolic Dictionary moves from tentative to settled — worth
+  adding as its own field state (`tentative` / `confirmed`) alongside
+  whatever tag-type field gets built for Part 0.
 
 ### Cross-Modal Coherence Boost
 
@@ -266,6 +372,30 @@ dream entry. Flag it in the Symbolic Dictionary as a high-significance
 first entry. Prompt the user to define it while fresh: "This one arrived
 with its meaning already in it — what is it telling you?"
 
+### The Real Trigger-Phrase Taxonomy
+
+`edins-protocols.md` defines four trigger-phrase categories with exact
+example wording, distinct from the Crisis Escalation Protocol's
+safety-trigger phrases (these are about *dream-recall process*, not
+risk):
+
+| Category | Example phrases |
+|---|---|
+| Recall-blocker | "there was more but it's fuzzy," "I don't know where that came from" |
+| Waking-activation | "just had a shower thought," "[figure] popped in and..." |
+| Integration-milestone | "it felt natural and normal," "I just knew" |
+| Biofeedback-signal | "my body felt...," "he was checking/monitoring/treating..." |
+
+**This is a real, concrete finding worth acting on:** the app's actual
+auto-tag code (`frontend/src/features/dream-journal/data/dreamAutoTags.js`)
+already implements three of these four categories (recall-blocker,
+waking-activation, integration-milestone) via keyword matching — but
+**biofeedback-signal is entirely missing from the code.** That's not a
+new feature to design, it's a known category from your own methodology
+that never made it into the keyword list. Worth adding
+`{ keyword: "checking", tag: "biofeedback-signal" }`-style entries the
+same way the other three categories work today.
+
 ### What Edin Never Does With Tags
 
 - Assigns meaning to a symbol on behalf of the user
@@ -329,3 +459,20 @@ against it.
   every other spec in this repo, definition comes first, implementation
   follows once Chelsey has reviewed the placeholder section above and
   the schema work is scoped.
+- **Symbol-dictionary edits need a versioning discipline, not silent
+  overwrites.** From `edins-methods-toolbox.md`: "A refinement happens
+  live... It gets logged with what changed and why... New sessions use
+  the current version going forward. Past logged sessions keep their
+  original interpretation — a redefinition doesn't retroactively rewrite
+  what already happened." Whatever table ends up holding confirmed
+  symbol/part/archetype meanings needs an append-only history, not a
+  single mutable row per tag — otherwise redefining a symbol later
+  silently changes what old insight cards meant when they were written.
+- **Edin should hold a coherence-dream flag as a hypothesis, not a
+  verdict** — consistent with the epistemic-honesty rule feeding the
+  Voice Spec ("Edin is the rope, not the cage... hypothesis, held
+  honestly, not asserted as fact," `edins-protocols.md`). Part 3's
+  scripted language above already does this correctly ("This one feels
+  different," "some patterns I don't usually see together") — worth
+  keeping that phrasing intact rather than tightening it into a
+  confident claim as this gets implemented.
