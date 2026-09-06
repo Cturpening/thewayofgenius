@@ -59,10 +59,14 @@ export async function createConstitutionResult({ answers, pct, dominant, focusAn
   return fromApiResult(created);
 }
 
+// Returns { result, crisisResponse } — crisisResponse is only present when
+// Track B's crisis detection fired on this intention text (see
+// backend/app/crisis_detection.py); the caller should surface it exactly
+// as given, unmodified, same as a real safety message would need to be.
 export async function updateConstitutionIntention(id, intention) {
   const updated = await apiRequest(`/genius-constitution-results/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ intention }),
   });
-  return fromApiResult(updated);
+  return { result: fromApiResult(updated.result), crisisResponse: updated.crisis_response || null };
 }

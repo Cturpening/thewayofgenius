@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { COLORS } from "../../theme/tokens";
+import { EDIN_ICON } from "../../assets/edinIcon";
 import { CHALLENGE_PROMPTS, CONSTITUTION_SCENARIOS, DAILY_LIFE_NOTE, DENSITY_NOTES, DOMINANT_COLOR, DOMINANT_LABEL, TOUCH_NOTES, TRIFECTA_LAYER } from "./data/constitutionData";
 import { computeConstitutionResult, pieSlicePath } from "./constitutionUtils";
 import { createConstitutionResult, updateConstitutionIntention } from "./api";
@@ -13,6 +14,7 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
   const [savedResultId, setSavedResultId] = useState(null);
   const [customAnswer, setCustomAnswer] = useState("");
   const [editingIntention, setEditingIntention] = useState(false);
+  const [crisisMessage, setCrisisMessage] = useState(null);
   const prevDoneRef = useRef(false);
 
   const handleAnswer = (value) => {
@@ -27,6 +29,7 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
     setEditingIntention(false);
     if (savedResultId) {
       updateConstitutionIntention(savedResultId, trimmed)
+        .then(({ crisisResponse }) => { if (crisisResponse) setCrisisMessage(crisisResponse); })
         .catch((err) => console.error("Failed to save intention:", err));
     }
   };
@@ -205,6 +208,20 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
           )}
 
           <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px dashed ${COLORS.grid}` }}>
+            {crisisMessage && (
+              <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+                  <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>{crisisMessage}</div>
+                </div>
+                <button
+                  onClick={() => setCrisisMessage(null)}
+                  style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
+                >
+                  I've seen this
+                </button>
+              </div>
+            )}
             <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 10 }}>
               YOU CHOOSE WHERE THIS GOES NEXT
             </div>

@@ -5,6 +5,7 @@ import { speakText, stopSpeaking } from "../../lib/speech";
 import SpeakButton from "../../components/common/SpeakButton";
 import { CONSTITUTION_SCENARIOS } from "../genius-constitution/data/constitutionData";
 import { edinAutoReply } from "./chatUtils";
+import { scanChatMessage } from "./api";
 
 export default function EdinChatView({ dreamEntries = [] }) {
   const [messages, setMessages] = useState([
@@ -13,6 +14,7 @@ export default function EdinChatView({ dreamEntries = [] }) {
     { from: "edin", text: "That's the third time this month — logged in your Biofeedback Lab thread as apprehension and curiosity, alchemized into \"a threshold waiting for readiness.\" Your real EEG read from that same night was delta-dominant, which usually means the deep-sleep part of the night was solid even if the dream itself felt unsettled. Want to open the Symbol Body Map and look at it together, or just sit with it for now?" },
   ]);
   const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
   const [voiceMode, setVoiceMode] = useState(false);
   const [activeScenario, setActiveScenario] = useState(null);
   const endRef = useRef(null);
@@ -30,12 +32,34 @@ export default function EdinChatView({ dreamEntries = [] }) {
 
   useEffect(() => () => stopSpeaking(), []);
 
-  const send = () => {
-    if (!input.trim()) return;
+  const send = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
     const userMsg = { from: "user", text: input };
-    const reply = { from: "edin", text: edinAutoReply(input) };
-    setMessages([...messages, userMsg, reply]);
+    setMessages((msgs) => [...msgs, userMsg]);
     setInput("");
+    setSending(true);
+
+    // Every message goes through Track B before the (illustrative,
+    // client-side) reply is shown -- this is a real crisis-detection
+    // checkpoint, not just the dream journal's. See app/main.py's
+    // /chat-messages/scan and protocols/03_Crisis_Escalation_Protocol.md.
+    // A scan failure (e.g. logged out, backend down) falls back to the
+    // canned reply rather than blocking the conversation -- but never
+    // silently swallows an actual crisis response when the scan succeeds.
+    let crisisResponse = null;
+    try {
+      crisisResponse = await scanChatMessage(text);
+    } catch (err) {
+      console.error("Crisis scan failed, falling back to canned reply:", err);
+    }
+
+    if (crisisResponse) {
+      setMessages((msgs) => [...msgs, { from: "edin", text: crisisResponse, crisis: true }]);
+    } else {
+      setMessages((msgs) => [...msgs, { from: "edin", text: edinAutoReply(text) }]);
+    }
+    setSending(false);
   };
 
   const startConstitutionCheckIn = () => {
@@ -105,8 +129,9 @@ export default function EdinChatView({ dreamEntries = [] }) {
                 }} />
               )}
               <div style={{
-                maxWidth: "68%", padding: "10px 14px", borderRadius: 14,
-                background: m.from === "user" ? COLORS.teal : COLORS.bgPanelAlt,
+                maxWidth: m.crisis ? "85%" : "68%", padding: "10px 14px", borderRadius: 14,
+                background: m.crisis ? `${COLORS.coral}18` : m.from === "user" ? COLORS.teal : COLORS.bgPanelAlt,
+                border: m.crisis ? `1px solid ${COLORS.coral}` : "none",
                 color: m.from === "user" ? "#FDFEFC" : COLORS.ink,
                 fontSize: 13, lineHeight: 1.5,
               }}>
@@ -142,16 +167,19 @@ export default function EdinChatView({ dreamEntries = [] }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Talk to Edin..."
+          disabled={sending}
           style={{
             flex: 1, padding: "10px 14px", borderRadius: 10, border: `1px solid ${COLORS.grid}`,
             background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none",
+            opacity: sending ? 0.6 : 1,
           }}
         />
         <button
           onClick={send}
-          style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: COLORS.teal, color: "#FDFEFC", fontSize: 13, cursor: "pointer" }}
+          disabled={sending}
+          style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: COLORS.teal, color: "#FDFEFC", fontSize: 13, cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1 }}
         >
-          Send
+          {sending ? "..." : "Send"}
         </button>
       </div>
 
@@ -180,7 +208,8 @@ export default function EdinChatView({ dreamEntries = [] }) {
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
         Illustrative keyword-matching, not a real language model — but every reply above draws on an
         actual real number or real finding already sitting in this prototype, not invented content. Voice
-        Mode uses real browser text-to-speech, not a simulated voice.
+        Mode uses real browser text-to-speech, not a simulated voice. Every message is still checked for
+        crisis language the same way a dream journal entry is, regardless of how the reply itself is generated.
       </div>
     </div>
   );

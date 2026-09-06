@@ -12,9 +12,12 @@ from app.database import engine, get_db
 from app.edin_ai import EdinAIError, generate_dream_reflection, is_configured as edin_ai_configured
 from app.models import DreamJournalEntry, FlaggedEvent, FollowThroughLogEntry, GeniusConstitutionResult
 from app.schemas import (
+    ChatMessageScan,
+    ChatMessageScanResponse,
     ConstitutionResultCreate,
     ConstitutionResultOut,
     ConstitutionResultUpdate,
+    ConstitutionResultUpdateResponse,
     DreamJournalEntryCreate,
     DreamJournalEntryOut,
     DreamJournalEntryResponse,
@@ -217,7 +220,7 @@ def list_constitution_results(db: Session = Depends(get_db), user_id: UUID = Dep
     )
 
 
-@app.patch("/genius-constitution-results/{result_id}", response_model=ConstitutionResultOut)
+@app.patch("/genius-constitution-results/{result_id}", response_model=ConstitutionResultUpdateResponse)
 def update_constitution_result(
     result_id: UUID,
     payload: ConstitutionResultUpdate,
@@ -231,11 +234,18 @@ def update_constitution_result(
     )
     if result is None:
         raise HTTPException(status_code=404, detail="Genius Constitution result not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+
+    updates = payload.model_dump(exclude_unset=True)
+    # `intention` is freeform text (see schemas.ConstitutionResultUpdate) --
+    # same as every other freeform field in this app, it goes through
+    # Track B before being saved. This was previously missed entirely.
+    crisis_response = _run_track_b(db, user_id, updates["intention"]) if updates.get("intention") else None
+
+    for field, value in updates.items():
         setattr(result, field, value)
     db.commit()
     db.refresh(result)
-    return result
+    return ConstitutionResultUpdateResponse(result=ConstitutionResultOut.model_validate(result), crisis_response=crisis_response)
 
 
 # ---------------------------------------------------------------------------
@@ -294,3 +304,24 @@ def update_follow_through(
     db.refresh(entry)
 
     return FollowThroughResponse(entry=FollowThroughOut.model_validate(entry), crisis_response=crisis_response)
+
+
+# ---------------------------------------------------------------------------
+# Chat (Edin — Available Anywhere)
+# ---------------------------------------------------------------------------
+
+@app.post("/chat-messages/scan", response_model=ChatMessageScanResponse)
+def scan_chat_message(
+    payload: ChatMessageScan, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    """The chat widget's replies are illustrative/client-side (see
+    frontend/src/features/chat/chatUtils.js) -- it doesn't persist
+    messages or call an AI provider. But it's a free-text surface a real
+    user could absolutely type crisis language into, so every message
+    still goes through Track B here before the frontend shows its canned
+    reply. Found missing entirely on 2026-09-05 -- see
+    protocols/03_Crisis_Escalation_Protocol.md.
+    """
+    crisis_response = _run_track_b(db, user_id, payload.text)
+    db.commit()
+    return ChatMessageScanResponse(crisis_response=crisis_response)

@@ -100,6 +100,13 @@ class ConstitutionResultOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ConstitutionResultUpdateResponse(BaseModel):
+    result: ConstitutionResultOut
+    # Present only when Track B's crisis override fired on this save's
+    # intention text. See protocols/03_Crisis_Escalation_Protocol.md.
+    crisis_response: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Follow-through log
 # ---------------------------------------------------------------------------
@@ -136,4 +143,23 @@ class FollowThroughResponse(BaseModel):
     entry: FollowThroughOut
     # Present only when Track B's crisis override fired on this save's
     # intention/note text. See protocols/03_Crisis_Escalation_Protocol.md.
+    crisis_response: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Chat (Edin — Available Anywhere)
+# ---------------------------------------------------------------------------
+
+class ChatMessageScan(BaseModel):
+    """Every free-text message a user sends to Edin's chat gets scanned
+    through this before the (illustrative, client-side) reply is shown --
+    this is a real Track B checkpoint, not just the dream journal's. See
+    protocols/03_Crisis_Escalation_Protocol.md and the 2026-09-05 finding
+    that this surface had no crisis detection wired to it at all."""
+
+    text: str
+
+
+class ChatMessageScanResponse(BaseModel):
+    # Present only when Track B's crisis override fired on this message.
     crisis_response: Optional[str] = None
