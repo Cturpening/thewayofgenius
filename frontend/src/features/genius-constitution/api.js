@@ -33,6 +33,7 @@ function fromApiResult(apiResult) {
     densityAnswer: apiResult.density_answer,
     touchAnswer: apiResult.touch_answer,
     intention: apiResult.intention,
+    edinNote: apiResult.edin_note || "",
     createdAt: apiResult.created_at,
   };
 }

@@ -7,6 +7,21 @@ response was generated under. Each version is its own file
 been used in production. `CURRENT_VERSION` in `__init__.py` is the only
 thing that changes when a new version ships.
 
+## v2 — generalized beyond the dream journal
+
+`app/edin_ai.py` grew two new call sites beyond the dream journal's Edin
+note: a follow-through log reflection (did the user act on an intention,
+and what happened) and a Genius Constitution reflection (dominant
+orientation plus the user's stated intention). v1's "Context for this
+response" section only described the dream journal case, so it's
+rewritten here to name all three input shapes explicitly and say how to
+handle each — dream journal entry, follow-through log entry, Genius
+Constitution result — while leaving every other section (core essence,
+voice, epistemic stance, language rules, tags/symbols) unchanged from
+v1. Nothing else about the persona changes; this is purely widening the
+"what am I reflecting on right now" framing to match the code that calls
+it.
+
 ## v1 — initial version
 
 Curated from the protocol library as it stood after the first research

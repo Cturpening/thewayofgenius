@@ -53,6 +53,7 @@ class GeniusConstitutionResult(Base):
     density_answer = Column(Text, nullable=True)
     touch_answer = Column(Text, nullable=True)
     intention = Column(Text, nullable=True)
+    edin_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -67,6 +68,7 @@ class FollowThroughLogEntry(Base):
     status = Column(Text, nullable=False, default="pending")
     note = Column(Text, nullable=True)
     emotional_shift = Column(Text, nullable=True)
+    edin_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 

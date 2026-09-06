@@ -1,9 +1,9 @@
 # Edin backend
 
-A FastAPI service, connected to Supabase Postgres. Dream journal entries
-are the first real endpoint; everything else (Constitution results,
-follow-through log, etc.) still doesn't have one yet. See the root
-[`SETUP.md`](../SETUP.md) for how to get a database to connect to.
+A FastAPI service, connected to Supabase Postgres. Dream journal entries,
+Genius Constitution results, and the follow-through log are all real,
+persisted endpoints. See the root [`SETUP.md`](../SETUP.md) for how to
+get a database to connect to.
 
 ```bash
 python3 -m venv .venv
@@ -37,7 +37,10 @@ uvicorn app.main:app --reload --port 8000
 
 ## Edin's AI layer
 
-`app/edin_ai.py` generates Edin's dream-journal reflections, using the
+`app/edin_ai.py` generates Edin's reflections across all three surfaces
+that call it — a dream journal entry's `edin_note`, a follow-through log
+entry's `edin_note` once its status moves past "pending", and a Genius
+Constitution result's `edin_note` once an `intention` is set — using the
 versioned system prompt in `app/edin_prompt/` (see that directory's
 `CHANGELOG.md` for what's in the current version and why). It supports
 two providers — Gemini and Claude (the Anthropic API) — each in its own

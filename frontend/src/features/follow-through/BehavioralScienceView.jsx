@@ -31,7 +31,12 @@ export default function BehavioralScienceView() {
   };
   const setStatus = (id, status) => {
     setFollowThroughs(followThroughs.map((f) => f.id === id ? { ...f, status } : f));
-    updateFollowThrough(id, { status }).catch((err) => console.error("Failed to save status:", err));
+    updateFollowThrough(id, { status })
+      // The backend generates Edin's reflection on this status change (see
+      // app/edin_ai.py's generate_follow_through_reflection) -- pull the
+      // resulting edinNote back into local state once it comes back.
+      .then(({ entry }) => setFollowThroughs((cur) => cur.map((f) => f.id === id ? { ...f, edinNote: entry.edinNote } : f)))
+      .catch((err) => console.error("Failed to save status:", err));
   };
   const setEmotionalShift = (id, emotionalShift) => {
     setFollowThroughs(followThroughs.map((f) => f.id === id ? { ...f, emotionalShift } : f));
@@ -294,6 +299,14 @@ function FollowThroughRow({ entry, srcMeta, onSetStatus, onSetEmotionalShift, on
               {v}
             </button>
           ))}
+        </div>
+      )}
+      {entry.edinNote && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10 }}>
+          <img src={EDIN_ICON} alt="Edin" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 12, fontStyle: "italic", color: COLORS.inkDim, lineHeight: 1.6 }}>
+            {entry.edinNote}
+          </div>
         </div>
       )}
     </div>

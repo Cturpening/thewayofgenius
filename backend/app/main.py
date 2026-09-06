@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user_id
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
 from app.database import engine, get_db
-from app.edin_ai import EdinAIError, generate_dream_reflection, is_configured as edin_ai_configured
+from app.edin_ai import (
+    EdinAIError,
+    generate_constitution_reflection,
+    generate_dream_reflection,
+    generate_follow_through_reflection,
+    is_configured as edin_ai_configured,
+)
 from app.models import DreamJournalEntry, FlaggedEvent, FollowThroughLogEntry, GeniusConstitutionResult
 from app.schemas import (
     ChatMessageScan,
@@ -241,6 +247,15 @@ def update_constitution_result(
     # Track B before being saved. This was previously missed entirely.
     crisis_response = _run_track_b(db, user_id, updates["intention"]) if updates.get("intention") else None
 
+    if crisis_response:
+        # Track B fires -- no AI call, same rule as everywhere else in this app.
+        updates["edin_note"] = None
+    elif updates.get("intention") and edin_ai_configured():
+        try:
+            updates["edin_note"] = generate_constitution_reflection(result.dominant_orientation, updates["intention"])
+        except EdinAIError as exc:
+            logger.warning("AI reflection failed, leaving prior edin_note in place: %s", exc)
+
     for field, value in updates.items():
         setattr(result, field, value)
     db.commit()
@@ -296,6 +311,21 @@ def update_follow_through(
     # whichever of them is actually present in this update.
     texts = [v for k, v in updates.items() if k in ("note", "intention") and v]
     crisis_response = _run_track_b(db, user_id, " ".join(texts)) if texts else None
+
+    # Edin's reflection only makes sense once there's something to reflect
+    # on -- i.e. once status has actually moved past "pending". Regenerates
+    # on every subsequent status change (e.g. "partial" -> "did" later) so
+    # the note always matches what's currently on record.
+    new_status = updates.get("status")
+    if crisis_response:
+        updates["edin_note"] = None
+    elif new_status and new_status != "pending" and edin_ai_configured():
+        try:
+            updates["edin_note"] = generate_follow_through_reflection(
+                updates.get("intention", entry.intention), entry.source, new_status
+            )
+        except EdinAIError as exc:
+            logger.warning("AI reflection failed, leaving prior edin_note in place: %s", exc)
 
     for field, value in updates.items():
         setattr(entry, field, value)

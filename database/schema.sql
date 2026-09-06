@@ -110,6 +110,7 @@ create table if not exists public.genius_constitution_results (
     density_answer text check (density_answer in ('full', 'guided', 'minimal')),
     touch_answer text check (touch_answer in ('front', 'background', 'self')),
     intention text,
+    edin_note text, -- Edin's reflection on the dominant orientation + intention, once intention is set
     created_at timestamptz not null default now()
 );
 
@@ -138,6 +139,7 @@ create table if not exists public.follow_through_log (
     status text not null default 'pending' check (status in ('pending', 'did', 'partial', 'didnt')),
     note text,
     emotional_shift text check (emotional_shift in ('higher', 'same', 'lower')),
+    edin_note text, -- Edin's reflection once status moves past 'pending' (there's nothing to reflect on before then)
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );

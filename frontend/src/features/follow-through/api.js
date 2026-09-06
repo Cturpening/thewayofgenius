@@ -19,6 +19,7 @@ function fromApiEntry(apiEntry) {
     status: apiEntry.status,
     note: apiEntry.note || "",
     emotionalShift: apiEntry.emotional_shift,
+    edinNote: apiEntry.edin_note || "",
   };
 }
 

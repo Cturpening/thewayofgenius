@@ -70,20 +70,18 @@ def _generate_with_fallback(system_prompt: str, user_content: str) -> str:
     raise EdinAIError("No configured AI provider produced a response")
 
 
-def generate_dream_reflection(entry_text: str, tags: list[str]) -> str:
-    """Generates Edin's reflective note on a dream journal entry.
+def generate_reflection(user_content: str) -> str:
+    """Generates one of Edin's short reflective notes from a fully-formed
+    description of what's being reflected on (see the wrappers below for
+    the three real call sites -- dream journal, follow-through, Genius
+    Constitution). Shared retry/fallback/language-safety logic lives here
+    so each wrapper only needs to build its own context text.
 
     Raises EdinAIError if no provider is configured or every call fails
     -- callers should catch this and fall back to whatever reflection
     they'd otherwise use (see app/main.py).
     """
     system_prompt = load_system_prompt()
-    user_content = (
-        f"Dream journal entry:\n{entry_text}\n\n"
-        f"Tags on this entry: {', '.join(tags) if tags else '(none)'}\n\n"
-        "Write Edin's reflective note for this entry, per your instructions."
-    )
-
     note = _generate_with_fallback(system_prompt, user_content)
 
     if passes_language_line(note):
@@ -107,3 +105,32 @@ def generate_dream_reflection(entry_text: str, tags: list[str]) -> str:
         return retry_note
 
     return _FALLBACK_NOTE
+
+
+def generate_dream_reflection(entry_text: str, tags: list[str]) -> str:
+    """Edin's reflective note on a dream journal entry."""
+    return generate_reflection(
+        f"Dream journal entry:\n{entry_text}\n\n"
+        f"Tags on this entry: {', '.join(tags) if tags else '(none)'}\n\n"
+        "Write Edin's reflective note for this entry, per your instructions."
+    )
+
+
+def generate_follow_through_reflection(intention: str, source: str, status: str) -> str:
+    """Edin's reflective note on a follow-through log entry -- did the
+    user act on an intention, and what actually happened."""
+    return generate_reflection(
+        f"Follow-through log entry. Source: {source}. Intention: {intention}. "
+        f"Status: {status}.\n\n"
+        "Write Edin's reflective note for this entry, per your instructions."
+    )
+
+
+def generate_constitution_reflection(dominant_orientation: str, intention: str) -> str:
+    """Edin's reflective note on the intention a user set after completing
+    (or revisiting) their Genius Constitution."""
+    return generate_reflection(
+        f"Genius Constitution result. Dominant orientation: {dominant_orientation}. "
+        f"The user's stated intention for where this goes next: {intention}\n\n"
+        "Write Edin's reflective note for this entry, per your instructions."
+    )

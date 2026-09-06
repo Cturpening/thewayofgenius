@@ -95,6 +95,10 @@ class ConstitutionResultOut(BaseModel):
     density_answer: Optional[str] = None
     touch_answer: Optional[str] = None
     intention: Optional[str] = None
+    # Generated once `intention` is set/edited -- see app/edin_ai.py's
+    # generate_constitution_reflection. Null before then; nothing to
+    # reflect on until the user has stated where this goes next.
+    edin_note: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -133,6 +137,10 @@ class FollowThroughOut(BaseModel):
     status: str
     note: Optional[str] = None
     emotional_shift: Optional[str] = None
+    # Generated once `status` moves past "pending" -- see app/edin_ai.py's
+    # generate_follow_through_reflection. Null while still pending; there's
+    # nothing to reflect on until something has actually happened.
+    edin_note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

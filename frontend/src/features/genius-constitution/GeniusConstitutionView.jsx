@@ -11,6 +11,7 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
   const [history, setHistory] = useState([]);
   const [intention, setIntention] = useState("");
   const [savedIntention, setSavedIntention] = useState("");
+  const [edinNote, setEdinNote] = useState("");
   const [savedResultId, setSavedResultId] = useState(null);
   const [customAnswer, setCustomAnswer] = useState("");
   const [editingIntention, setEditingIntention] = useState(false);
@@ -28,8 +29,14 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
     setSavedIntention(trimmed);
     setEditingIntention(false);
     if (savedResultId) {
+      // The backend generates Edin's reflection on the dominant orientation +
+      // this intention (see app/edin_ai.py's generate_constitution_reflection)
+      // -- pull it back into local state once it comes back.
       updateConstitutionIntention(savedResultId, trimmed)
-        .then(({ crisisResponse }) => { if (crisisResponse) setCrisisMessage(crisisResponse); })
+        .then(({ result, crisisResponse }) => {
+          setEdinNote(result.edinNote);
+          if (crisisResponse) setCrisisMessage(crisisResponse);
+        })
         .catch((err) => console.error("Failed to save intention:", err));
     }
   };
@@ -226,14 +233,24 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
               YOU CHOOSE WHERE THIS GOES NEXT
             </div>
             {savedIntention && !editingIntention ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
-                <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5, fontStyle: "italic", flex: 1 }}>"{savedIntention}"</div>
-                <button
-                  onClick={() => { setIntention(savedIntention); setEditingIntention(true); }}
-                  style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 10.5, cursor: "pointer", flexShrink: 0 }}
-                >
-                  Edit
-                </button>
+              <div>
+                <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                  <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5, fontStyle: "italic", flex: 1 }}>"{savedIntention}"</div>
+                  <button
+                    onClick={() => { setIntention(savedIntention); setEditingIntention(true); }}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 10.5, cursor: "pointer", flexShrink: 0 }}
+                  >
+                    Edit
+                  </button>
+                </div>
+                {edinNote && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 10 }}>
+                    <img src={EDIN_ICON} alt="Edin" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+                    <div style={{ fontFamily: "Georgia, serif", fontSize: 12, fontStyle: "italic", color: COLORS.inkDim, lineHeight: 1.6 }}>
+                      {edinNote}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ display: "flex", gap: 8 }}>
@@ -265,7 +282,7 @@ export default function GeniusConstitutionView({ answers, setAnswers }) {
           </div>
 
           <button
-            onClick={() => { setAnswers([]); setSavedIntention(""); setIntention(""); setSavedResultId(null); setCustomAnswer(""); setEditingIntention(false); }}
+            onClick={() => { setAnswers([]); setSavedIntention(""); setEdinNote(""); setIntention(""); setSavedResultId(null); setCustomAnswer(""); setEditingIntention(false); }}
             style={{ marginTop: 16, padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12, cursor: "pointer" }}
           >
             ↺ Try different answers
