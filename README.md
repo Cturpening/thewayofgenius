@@ -2,14 +2,15 @@
 
 Edin is a coaching / self-development app: a dream journal, a "Genius
 Constitution" self-assessment, a follow-through log for tracking whether
-intentions actually turn into action, and an AI coaching companion ("Edin")
-tying it together.
+intentions actually turn into action, goals and a calendar tied to
+whichever real modality feeds them, a coach dashboard, and an AI coaching
+companion ("Edin," on Gemini) tying it together.
 
 This repo is structured as three pieces:
 
 ```
 frontend/   React app (the product itself)
-backend/    FastAPI server (Python) — currently just proves it can reach the database
+backend/    FastAPI server (Python) — real auth, real CRUD, real AI-generated reflections
 database/   Supabase Postgres schema (SQL)
 ```
 
