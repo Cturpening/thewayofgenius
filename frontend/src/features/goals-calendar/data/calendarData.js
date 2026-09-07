@@ -1,10 +1,15 @@
 import { COLORS } from "../../../theme/tokens";
 
-export const GOALS = [
-  { name: "Fall asleep without racing thoughts", modality: "Metacognitive Training", color: COLORS.gold, progress: 0.6 },
-  { name: "Notice the locked-door symbol before it recurs", modality: "Biofeedback", color: COLORS.coral, progress: 0.35 },
-  { name: "Ship the Q3 proposal", modality: "Career (no modality link)", color: COLORS.inkDim, progress: 0.8 },
-  { name: "Reduce gut tension before big meetings", modality: "Microbiome + Biofeedback", color: COLORS.teal, progress: 0.2 },
+// A goal's `modality` names which lane of the app actually feeds progress on
+// it -- a real constrained type in the database (see database/schema.sql),
+// not a decorative label. "career" and "other" are the honest case of no
+// real modality behind it yet.
+export const GOAL_MODALITIES = [
+  { key: "sleep", label: "Metacognitive Training", color: COLORS.gold },
+  { key: "biofeedback", label: "Biofeedback", color: COLORS.coral },
+  { key: "microbiome", label: "Microbiome + Biofeedback", color: COLORS.teal },
+  { key: "career", label: "Career (no modality link)", color: COLORS.inkDim },
+  { key: "other", label: "Other", color: COLORS.violet },
 ];
 
 

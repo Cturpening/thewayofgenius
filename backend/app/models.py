@@ -8,7 +8,7 @@ change the other to match — there's no migration tool wired up yet.
 
 import uuid
 
-from sqlalchemy import ARRAY, Boolean, Column, Integer, Text, TIMESTAMP
+from sqlalchemy import ARRAY, Boolean, Column, Integer, Numeric, Text, TIMESTAMP
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 
@@ -71,6 +71,31 @@ class FollowThroughLogEntry(Base):
     edin_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
+class Goal(Base):
+    __tablename__ = "goals"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    name = Column(Text, nullable=False)
+    modality = Column(Text, nullable=False)
+    progress = Column(Numeric(3, 2), nullable=False, default=0)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    day = Column(Text, nullable=False)
+    label = Column(Text, nullable=False)
+    category = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
 class FlaggedEvent(Base):

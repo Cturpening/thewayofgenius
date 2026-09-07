@@ -155,6 +155,67 @@ create policy "Users manage their own follow-through log"
     with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
+-- Goals
+--
+-- `modality` is a real constrained type, not the decorative free-text label
+-- the prototype UI used before this table existed -- it names which lane of
+-- the app actually feeds progress on this goal (or 'career' /  'other' for
+-- the honest case of no real data source yet). See
+-- frontend/src/features/goals-calendar/GoalsAndCalendarLens.jsx.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.goals (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    name text not null,
+    modality text not null check (modality in ('sleep', 'biofeedback', 'microbiome', 'career', 'other')),
+    progress numeric(3, 2) not null default 0 check (progress between 0 and 1),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists goals_user_id_idx
+    on public.goals (user_id, created_at desc);
+
+alter table public.goals enable row level security;
+
+create policy "Users manage their own goals"
+    on public.goals for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Calendar events
+--
+-- The user-added half of the Goals & Calendar view -- "day" is a weekday
+-- name against one illustrative week (no real dates yet; the fixed
+-- WEEK_SESSIONS shown alongside these are static frontend data, not user
+-- data, so they aren't in this table). Real Google Calendar sync is future
+-- work per the architecture note in GoalsAndCalendarLens.jsx -- this table
+-- is Edin's own record, which a sync would mirror onto Calendar, not the
+-- other way around.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.calendar_events (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    day text not null check (day in ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')),
+    label text not null,
+    category text not null check (category in ('health', 'goal', 'incubation', 'journal', 'biofeedback', 'other')),
+    created_at timestamptz not null default now()
+);
+
+create index if not exists calendar_events_user_id_idx
+    on public.calendar_events (user_id, created_at desc);
+
+alter table public.calendar_events enable row level security;
+
+create policy "Users manage their own calendar events"
+    on public.calendar_events for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Flagged events (safety escalation)
 --
 -- Detection/logging half of the safety-escalation feature (Track B): when

@@ -134,6 +134,35 @@ that carries it out.
   established in entries above, applied to two new surfaces. Ordinary
   engineering extension, not a new method.
 
+## 7. Goals & Calendar wired to a real database (2026-09-07)
+
+- **Conceptual origin:** Chelsey — the "goal modality" model itself: a
+  goal is honestly tagged to whichever real lane of the app (sleep/dream
+  training, biofeedback, microbiome) actually produces the data behind
+  it, with "career"/"other" as the explicit, honest case of no real
+  modality backing it yet. Also hers: the architecture note that Edin's
+  own data model is the record and a Google Calendar sync would be a
+  mirror on top of it, not the other way around.
+- **Implementation:** Claude — the `goals`/`calendar_events` tables and
+  their constrained-enum columns, the CRUD endpoints in `main.py`, and
+  the frontend rewrite (real fetch/persist instead of hardcoded/
+  client-only state, the add-goal and progress-step UI, which didn't
+  exist in any form before this).
+- **Novelty flag:** No — this is ordinary CRUD engineering in service of
+  a modeling decision (the modality tagging) that's really a restatement
+  of entry 4's Trifecta-adjacent thinking applied to goals, not a new
+  method of its own.
+
+**Also surfaced while wiring this in:** smoke-testing calendar events
+against Track B (entry 1) turned up a real gap, unrelated to this
+feature — `crisis_detection.py`'s Tier 2 patterns don't match phrasing
+like "I want to hurt myself," only more specific phrases ("kill myself,"
+"end my life," "want to die," etc). Flagged to Chelsey directly rather
+than patched here — the crisis-language pattern list is safety-critical
+and was deliberately hand-built (see protocol 03 and the "exact
+escalation timing" work), so it deserves the same care, not a drive-by
+edit inside an unrelated feature's diff.
+
 ---
 
 ## Running list flagged for Charles

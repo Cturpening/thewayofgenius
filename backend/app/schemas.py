@@ -155,6 +155,63 @@ class FollowThroughResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Goals & Calendar
+# ---------------------------------------------------------------------------
+
+class GoalCreate(BaseModel):
+    name: str
+    modality: Literal["sleep", "biofeedback", "microbiome", "career", "other"]
+
+
+class GoalUpdate(BaseModel):
+    """Only name and progress are editable after creation -- modality is fixed at creation time."""
+
+    name: Optional[str] = None
+    progress: Optional[float] = Field(default=None, ge=0, le=1)
+
+
+class GoalOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    name: str
+    modality: str
+    progress: float
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class GoalResponse(BaseModel):
+    goal: GoalOut
+    # Present only when Track B's crisis override fired on this save's name text.
+    crisis_response: Optional[str] = None
+
+
+class CalendarEventCreate(BaseModel):
+    day: Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    label: str
+    category: Literal["health", "goal", "incubation", "journal", "biofeedback", "other"]
+
+
+class CalendarEventOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    day: str
+    label: str
+    category: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CalendarEventResponse(BaseModel):
+    event: CalendarEventOut
+    # Present only when Track B's crisis override fired on this save's label text.
+    crisis_response: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Chat (Edin — Available Anywhere)
 # ---------------------------------------------------------------------------
 

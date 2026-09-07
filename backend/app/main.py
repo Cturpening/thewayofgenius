@@ -16,8 +16,18 @@ from app.edin_ai import (
     generate_follow_through_reflection,
     is_configured as edin_ai_configured,
 )
-from app.models import DreamJournalEntry, FlaggedEvent, FollowThroughLogEntry, GeniusConstitutionResult
+from app.models import (
+    CalendarEvent,
+    DreamJournalEntry,
+    FlaggedEvent,
+    FollowThroughLogEntry,
+    GeniusConstitutionResult,
+    Goal,
+)
 from app.schemas import (
+    CalendarEventCreate,
+    CalendarEventOut,
+    CalendarEventResponse,
     ChatMessageScan,
     ChatMessageScanResponse,
     ConstitutionResultCreate,
@@ -32,6 +42,10 @@ from app.schemas import (
     FollowThroughOut,
     FollowThroughResponse,
     FollowThroughUpdate,
+    GoalCreate,
+    GoalOut,
+    GoalResponse,
+    GoalUpdate,
 )
 
 logger = logging.getLogger("edin")
@@ -334,6 +348,88 @@ def update_follow_through(
     db.refresh(entry)
 
     return FollowThroughResponse(entry=FollowThroughOut.model_validate(entry), crisis_response=crisis_response)
+
+
+# ---------------------------------------------------------------------------
+# Goals & Calendar
+# ---------------------------------------------------------------------------
+
+@app.post("/goals", response_model=GoalResponse, status_code=201)
+def create_goal(payload: GoalCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    crisis_response = _run_track_b(db, user_id, payload.name)
+    goal = Goal(user_id=user_id, name=payload.name, modality=payload.modality)
+    db.add(goal)
+    db.commit()
+    db.refresh(goal)
+    return GoalResponse(goal=GoalOut.model_validate(goal), crisis_response=crisis_response)
+
+
+@app.get("/goals", response_model=list[GoalOut])
+def list_goals(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return (
+        db.query(Goal)
+        .filter(Goal.user_id == user_id)
+        .order_by(Goal.created_at.desc())
+        .all()
+    )
+
+
+@app.patch("/goals/{goal_id}", response_model=GoalResponse)
+def update_goal(
+    goal_id: UUID, payload: GoalUpdate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == user_id).first()
+    if goal is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    updates = payload.model_dump(exclude_unset=True)
+    crisis_response = _run_track_b(db, user_id, updates["name"]) if updates.get("name") else None
+
+    for field, value in updates.items():
+        setattr(goal, field, value)
+    db.commit()
+    db.refresh(goal)
+    return GoalResponse(goal=GoalOut.model_validate(goal), crisis_response=crisis_response)
+
+
+@app.delete("/goals/{goal_id}", status_code=204)
+def delete_goal(goal_id: UUID, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == user_id).first()
+    if goal is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    db.delete(goal)
+    db.commit()
+
+
+@app.post("/calendar-events", response_model=CalendarEventResponse, status_code=201)
+def create_calendar_event(
+    payload: CalendarEventCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    crisis_response = _run_track_b(db, user_id, payload.label)
+    event = CalendarEvent(user_id=user_id, day=payload.day, label=payload.label, category=payload.category)
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return CalendarEventResponse(event=CalendarEventOut.model_validate(event), crisis_response=crisis_response)
+
+
+@app.get("/calendar-events", response_model=list[CalendarEventOut])
+def list_calendar_events(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return (
+        db.query(CalendarEvent)
+        .filter(CalendarEvent.user_id == user_id)
+        .order_by(CalendarEvent.created_at.desc())
+        .all()
+    )
+
+
+@app.delete("/calendar-events/{event_id}", status_code=204)
+def delete_calendar_event(event_id: UUID, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    event = db.query(CalendarEvent).filter(CalendarEvent.id == event_id, CalendarEvent.user_id == user_id).first()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Calendar event not found")
+    db.delete(event)
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
