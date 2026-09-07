@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user_id
+from app.auth import get_current_coach_id, get_current_user_id
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
 from app.database import engine, get_db
 from app.edin_ai import (
@@ -18,11 +18,14 @@ from app.edin_ai import (
 )
 from app.models import (
     CalendarEvent,
+    CoachNote,
     DreamJournalEntry,
     FlaggedEvent,
     FollowThroughLogEntry,
     GeniusConstitutionResult,
     Goal,
+    Profile,
+    SymbolValidation,
 )
 from app.schemas import (
     CalendarEventCreate,
@@ -30,6 +33,9 @@ from app.schemas import (
     CalendarEventResponse,
     ChatMessageScan,
     ChatMessageScanResponse,
+    ClientOut,
+    CoachNoteCreate,
+    CoachNoteOut,
     ConstitutionResultCreate,
     ConstitutionResultOut,
     ConstitutionResultUpdate,
@@ -46,6 +52,8 @@ from app.schemas import (
     GoalOut,
     GoalResponse,
     GoalUpdate,
+    SymbolValidationCreate,
+    SymbolValidationOut,
 )
 
 logger = logging.getLogger("edin")
@@ -85,6 +93,22 @@ def _verify_goal_ownership(db: Session, user_id: UUID, goal_id: UUID) -> None:
     exists = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == user_id).first()
     if exists is None:
         raise HTTPException(status_code=404, detail="Goal not found")
+
+
+def _confirmed_tags(db: Session, client_id: UUID, tags: list[str]) -> list[str]:
+    """Which of `tags` a coach has validated for this user -- see
+    app/models.py's SymbolValidation and the /coach/clients/{id}/
+    symbol-validations routes below. Passed into generate_dream_reflection
+    so Edin is told, per-tag, what's actually confirmed vs. still
+    tentative (protocols/11_Coherence_Dream_Criteria_Tagging_Density.md)."""
+    if not tags:
+        return []
+    rows = (
+        db.query(SymbolValidation.tag)
+        .filter(SymbolValidation.client_id == client_id, SymbolValidation.tag.in_(tags))
+        .all()
+    )
+    return [row.tag for row in rows]
 
 
 @app.get("/health")
@@ -150,7 +174,8 @@ def create_journal_entry(
         edin_note = None
     elif edin_ai_configured():
         try:
-            edin_note = generate_dream_reflection(combined_text, payload.tags)
+            confirmed = _confirmed_tags(db, user_id, payload.tags)
+            edin_note = generate_dream_reflection(combined_text, payload.tags, confirmed_tags=confirmed)
         except EdinAIError as exc:
             logger.warning("AI reflection failed, falling back to canned note: %s", exc)
 
@@ -474,3 +499,158 @@ def scan_chat_message(
     crisis_response = _run_track_b(db, user_id, payload.text)
     db.commit()
     return ChatMessageScanResponse(crisis_response=crisis_response)
+
+
+# ---------------------------------------------------------------------------
+# Coach dashboard
+#
+# Every route below requires get_current_coach_id, not get_current_user_id
+# -- that's the real access-control boundary letting one account read
+# another's data at all. Single-coach model: any profile is a valid
+# "client" here, including the coach's own account, since there's no
+# separate coach-client assignment table yet (see database/schema.sql's
+# note on profiles.is_coach). None of this touches the chat widget --
+# it's illustrative/client-side and was never persisted server-side to
+# begin with, so there's nothing here to surface even if asked to.
+# ---------------------------------------------------------------------------
+
+def _client_or_404(db: Session, client_id: UUID) -> Profile:
+    client = db.query(Profile).filter(Profile.id == client_id).first()
+    if client is None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client
+
+
+@app.get("/coach/status")
+def coach_status(coach_id: UUID = Depends(get_current_coach_id)):
+    """Lets the frontend probe whether the caller is a coach at all, to
+    decide whether to show the dashboard nav item -- a 403 here means
+    "hide it," not an error to surface to the user."""
+    return {"is_coach": True}
+
+
+@app.get("/coach/clients", response_model=list[ClientOut])
+def list_clients(db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
+    clients = db.query(Profile).order_by(Profile.created_at.asc()).all()
+    out = []
+    for client in clients:
+        resolved = (
+            db.query(FollowThroughLogEntry)
+            .filter(FollowThroughLogEntry.user_id == client.id, FollowThroughLogEntry.status != "pending")
+            .all()
+        )
+        rate = round(sum(1 for f in resolved if f.status == "did") / len(resolved) * 100) if resolved else None
+        out.append(ClientOut(
+            id=client.id,
+            display_name=client.display_name,
+            is_self=(client.id == coach_id),
+            dream_entry_count=db.query(DreamJournalEntry).filter(DreamJournalEntry.user_id == client.id).count(),
+            constitution_count=db.query(GeniusConstitutionResult).filter(GeniusConstitutionResult.user_id == client.id).count(),
+            goal_count=db.query(Goal).filter(Goal.user_id == client.id).count(),
+            follow_through_rate=rate,
+        ))
+    return out
+
+
+@app.get("/coach/clients/{client_id}/dream-entries", response_model=list[DreamJournalEntryOut])
+def coach_list_dream_entries(
+    client_id: UUID, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    _client_or_404(db, client_id)
+    return (
+        db.query(DreamJournalEntry)
+        .filter(DreamJournalEntry.user_id == client_id)
+        .order_by(DreamJournalEntry.created_at.desc())
+        .all()
+    )
+
+
+@app.get("/coach/clients/{client_id}/constitution-results", response_model=list[ConstitutionResultOut])
+def coach_list_constitution_results(
+    client_id: UUID, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    _client_or_404(db, client_id)
+    return (
+        db.query(GeniusConstitutionResult)
+        .filter(GeniusConstitutionResult.user_id == client_id)
+        .order_by(GeniusConstitutionResult.created_at.desc())
+        .all()
+    )
+
+
+@app.get("/coach/clients/{client_id}/notes", response_model=list[CoachNoteOut])
+def coach_list_notes(client_id: UUID, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
+    _client_or_404(db, client_id)
+    return (
+        db.query(CoachNote)
+        .filter(CoachNote.client_id == client_id)
+        .order_by(CoachNote.created_at.desc())
+        .all()
+    )
+
+
+@app.post("/coach/clients/{client_id}/notes", response_model=CoachNoteOut, status_code=201)
+def coach_add_note(
+    client_id: UUID,
+    payload: CoachNoteCreate,
+    db: Session = Depends(get_db),
+    coach_id: UUID = Depends(get_current_coach_id),
+):
+    _client_or_404(db, client_id)
+    note = CoachNote(coach_id=coach_id, client_id=client_id, note=payload.note)
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+    return note
+
+
+@app.get("/coach/clients/{client_id}/symbol-validations", response_model=list[SymbolValidationOut])
+def coach_list_symbol_validations(
+    client_id: UUID, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    _client_or_404(db, client_id)
+    return db.query(SymbolValidation).filter(SymbolValidation.client_id == client_id).all()
+
+
+@app.post("/coach/clients/{client_id}/symbol-validations", response_model=SymbolValidationOut, status_code=201)
+def coach_validate_symbol(
+    client_id: UUID,
+    payload: SymbolValidationCreate,
+    db: Session = Depends(get_db),
+    coach_id: UUID = Depends(get_current_coach_id),
+):
+    """Implements the coach-validation path from
+    protocols/11_Coherence_Dream_Criteria_Tagging_Density.md's symbol-
+    confirmation rule. Upserts on (client_id, tag) -- re-validating just
+    refreshes who validated it and when, rather than erroring."""
+    _client_or_404(db, client_id)
+    existing = (
+        db.query(SymbolValidation)
+        .filter(SymbolValidation.client_id == client_id, SymbolValidation.tag == payload.tag)
+        .first()
+    )
+    if existing:
+        existing.validated_by = coach_id
+        db.commit()
+        db.refresh(existing)
+        return existing
+    validation = SymbolValidation(client_id=client_id, tag=payload.tag, validated_by=coach_id)
+    db.add(validation)
+    db.commit()
+    db.refresh(validation)
+    return validation
+
+
+@app.delete("/coach/clients/{client_id}/symbol-validations/{tag}", status_code=204)
+def coach_unvalidate_symbol(
+    client_id: UUID, tag: str, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    validation = (
+        db.query(SymbolValidation)
+        .filter(SymbolValidation.client_id == client_id, SymbolValidation.tag == tag)
+        .first()
+    )
+    if validation is None:
+        raise HTTPException(status_code=404, detail="Symbol validation not found")
+    db.delete(validation)
+    db.commit()

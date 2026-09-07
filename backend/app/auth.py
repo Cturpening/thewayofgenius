@@ -21,9 +21,12 @@ JWT verification (and its key-rotation edge cases) by hand.
 import uuid
 
 import httpx
-from fastapi import Header, HTTPException
+from fastapi import Depends, Header, HTTPException
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.database import get_db
+from app.models import Profile
 
 settings = get_settings()
 
@@ -48,3 +51,19 @@ async def get_current_user_id(authorization: str | None = Header(default=None)) 
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return uuid.UUID(user_id)
+
+
+def get_current_coach_id(
+    user_id: uuid.UUID = Depends(get_current_user_id), db: Session = Depends(get_db)
+) -> uuid.UUID:
+    """Same verified identity as get_current_user_id, plus a check that
+    profiles.is_coach is set for this account. This is the real access-
+    control boundary for every /coach/* route in app/main.py -- a coach
+    can read across other accounts, so this gate has to hold regardless
+    of what the frontend does or doesn't show. See database/schema.sql's
+    note on profiles.is_coach for how that flag gets set (by hand, for
+    now -- there's no admin UI, this is a single-coach private beta)."""
+    profile = db.query(Profile).filter(Profile.id == user_id).first()
+    if profile is None or not profile.is_coach:
+        raise HTTPException(status_code=403, detail="Coach access required")
+    return user_id

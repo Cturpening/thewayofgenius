@@ -7,6 +7,20 @@ response was generated under. Each version is its own file
 been used in production. `CURRENT_VERSION` in `__init__.py` is the only
 thing that changes when a new version ships.
 
+## v3 — coach-validated symbols now change what Edin is told
+
+The coach dashboard added a real implementation of one of the three
+symbol-confirmation paths from `protocols/11_Coherence_Dream_Criteria_Tagging_Density.md`
+(coach validation) -- `generate_dream_reflection` now accepts which of a
+dream entry's tags a coach has validated, and marks each tag in the
+prompt as "(confirmed by a coach)" or "(not yet confirmed)". v2's "Tags,
+symbols, parts, and archetypes" section stated the confirmation rule but
+never told Edin how to act differently once something actually met it;
+this version adds that instruction -- confirmed tags can be spoken of as
+settled ground, unmarked ones stay tentative regardless, since the other
+two confirmation paths (self-ID, five-plus recurrence) aren't tracked
+yet. Everything else is unchanged from v2.
+
 ## v2 — generalized beyond the dream journal
 
 `app/edin_ai.py` grew two new call sites beyond the dream journal's Edin

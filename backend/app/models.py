@@ -21,6 +21,7 @@ class Profile(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True)
     display_name = Column(Text, nullable=True)
+    is_coach = Column(Boolean, nullable=False, default=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -98,6 +99,28 @@ class CalendarEvent(Base):
     label = Column(Text, nullable=False)
     category = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
+class CoachNote(Base):
+    __tablename__ = "coach_notes"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    coach_id = Column(UUID(as_uuid=True), nullable=False)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    note = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SymbolValidation(Base):
+    __tablename__ = "symbol_validations"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    tag = Column(Text, nullable=False)
+    validated_by = Column(UUID(as_uuid=True), nullable=False)
+    validated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
 class FlaggedEvent(Base):

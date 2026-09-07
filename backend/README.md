@@ -114,6 +114,45 @@ Two things make this manageable rather than a surprise either way:
   fix is just picking a current model name from the relevant models page
   and updating the env var — not a rebuild.
 
+## Coach dashboard
+
+Single-coach model, built for this private-beta phase specifically — no
+admin UI, no multi-coach support, no separate coach-client assignment
+table. Any account can read another account's dream entries, Genius
+Constitution results, add coaching notes, and validate symbols, as long
+as `profiles.is_coach` is `true` for the caller. There's exactly one way
+to set that flag: by hand, in the Supabase SQL editor, once you know your
+own account's real user id (Supabase dashboard → Authentication → Users):
+
+```sql
+update public.profiles set is_coach = true where id = '<your-user-id>';
+```
+
+Every `/coach/*` route depends on `get_current_coach_id` (see
+`app/auth.py`), not the ordinary `get_current_user_id` — that's the real
+access-control boundary, checked server-side on every request, not
+something the frontend enforces by choosing what to show. `GET
+/coach/clients` treats every profile as a valid "client," including the
+coach's own account, so you see your own data through the same lens
+without any special-casing.
+
+The chat widget is deliberately not part of this: it's illustrative and
+client-side only (see `frontend/src/features/chat/chatUtils.js`) and was
+never persisted server-side, so there's no chat history in the database
+for a coach view to surface even in principle.
+
+`POST /coach/clients/{id}/symbol-validations` is the first real
+implementation of a rule from
+`../protocols/11_Coherence_Dream_Criteria_Tagging_Density.md`: a symbol's
+meaning is only confirmed via self-ID, coach validation, or five-plus
+unambiguous recurrences. Only the coach-validation path exists in code
+right now. Once a tag is validated for a client, `app/edin_ai.py`'s
+`generate_dream_reflection` is told which of a new entry's tags are
+confirmed vs. still tentative, and the system prompt (`v3.md` onward)
+tells Edin to actually treat that distinction differently — this is the
+literal mechanism behind "training Edin" from the coach dashboard, not
+just a label.
+
 ## Running the tests
 
 ```bash
@@ -133,6 +172,7 @@ Postgres yet.
 ```
 app/
   main.py             FastAPI app + routes
+  auth.py             get_current_user_id + get_current_coach_id (real access-control boundaries)
   config.py           settings, read from .env
   database.py         SQLAlchemy engine/session setup
   models.py           ORM models mirroring database/schema.sql

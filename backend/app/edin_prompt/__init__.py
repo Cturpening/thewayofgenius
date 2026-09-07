@@ -9,7 +9,7 @@ later prompt change never silently reinterprets an old response.
 
 from pathlib import Path
 
-CURRENT_VERSION = "v2"
+CURRENT_VERSION = "v3"
 
 _PROMPT_DIR = Path(__file__).parent
 

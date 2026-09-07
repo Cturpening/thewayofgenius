@@ -221,6 +221,51 @@ class CalendarEventResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Coach dashboard
+#
+# Single-coach model (see database/schema.sql's note on profiles.is_coach):
+# any account can be a "client" here, including the coach's own -- there's
+# no separate coach-client assignment table for this private-beta phase.
+# ---------------------------------------------------------------------------
+
+class ClientOut(BaseModel):
+    id: UUID
+    display_name: Optional[str] = None
+    is_self: bool  # true when this row is the coach's own account
+    dream_entry_count: int
+    constitution_count: int
+    goal_count: int
+    # None means nothing has moved past "pending" yet -- distinct from 0%.
+    follow_through_rate: Optional[int] = None
+
+
+class CoachNoteCreate(BaseModel):
+    note: str
+
+
+class CoachNoteOut(BaseModel):
+    id: UUID
+    coach_id: UUID
+    client_id: UUID
+    note: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SymbolValidationCreate(BaseModel):
+    tag: str
+
+
+class SymbolValidationOut(BaseModel):
+    tag: str
+    validated_by: UUID
+    validated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
 # Chat (Edin — Available Anywhere)
 # ---------------------------------------------------------------------------
 

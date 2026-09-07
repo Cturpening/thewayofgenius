@@ -181,6 +181,31 @@ edit inside an unrelated feature's diff.
   plus an ownership check) in service of a product decision, not a new
   method.
 
+## 9. Coach dashboard, and the coach-validation path made real (2026-09-07)
+
+- **Conceptual origin:** Chelsey — the requirement itself (track and
+  engage with clients and herself, through their dreams and Genius
+  Constitution results specifically, while training Edin at the same
+  time), the single-coach/short-term framing that shaped how small this
+  was kept, and the decision that the confirmed-vs-tentative distinction
+  from protocol 11 should actually reach Edin's generation, not just
+  live as a database flag. Also hers, going back to protocol 11 itself:
+  the underlying confirmation rule this makes real.
+- **Implementation:** Claude — `profiles.is_coach` and the single-coach
+  access model, the `coach_notes` and `symbol_validations` tables, the
+  `get_current_coach_id` auth dependency (the real boundary letting one
+  account read another's data, checked server-side on every request),
+  the `/coach/*` routes, the coach-dashboard frontend, and the change to
+  `generate_dream_reflection`/`v3.md` that marks each tag "(confirmed by
+  a coach)" or "(not yet confirmed)" in what Edin is actually told.
+- **Novelty flag:** Possibly worth raising — not the CRUD plumbing
+  itself, but the specific mechanism connecting a human coach's
+  validation action to a live change in what an LLM is told before it
+  generates a reflection, keyed to a symbol-confirmation rule with real
+  clinical/methodological grounding (protocol 11), is a distinct
+  approach worth Charles's attention, separate from being well-built
+  software.
+
 ---
 
 ## Running list flagged for Charles
@@ -190,9 +215,14 @@ edit inside an unrelated feature's diff.
 2. Forced-regeneration output safety net keyed to a defined clinical-
    language boundary (entry 2).
 3. The symbol-confirmation threshold rule — self-ID OR coach validation
-   OR 5+ unambiguous recurrences (entry 3) — once it's real code, not
-   just a prompt instruction.
+   OR 5+ unambiguous recurrences (entry 3) — now partly real code (the
+   coach-validation path, entry 9); self-ID and 5+ recurrence still
+   aren't built.
 4. The append-only, response-tagged prompt versioning discipline (entry 5).
+5. The coach-validation-to-generation pipeline (entry 9) — a human
+   action changing, in real time, what an LLM is told before it
+   generates a user-facing response, tied to a specific clinical-
+   methodology rule rather than a generic "human-in-the-loop" pattern.
 
 *(Add to this log as we build. Each new feature gets an entry before or
 right after it ships, not retroactively in bulk — that's the only way

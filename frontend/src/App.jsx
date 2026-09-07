@@ -20,6 +20,8 @@ import { EDIN_GREETINGS } from "./features/chat/data/greetings";
 import { useAuth } from "./features/auth/useAuth";
 import AuthView from "./features/auth/AuthView";
 import { supabase } from "./lib/supabaseClient";
+import CoachDashboardView from "./features/coach-dashboard/CoachDashboardView";
+import { checkIsCoach } from "./features/coach-dashboard/api";
 
 export default function App() {
   const session = useAuth();
@@ -33,6 +35,7 @@ export default function App() {
   const [constitutionAnswers, setConstitutionAnswers] = useState([]);
   const [newUserMode, setNewUserMode] = useState(true);
   const [simulatedDay, setSimulatedDay] = useState(1);
+  const [isCoach, setIsCoach] = useState(false);
 
   useEffect(() => {
     if (!session) {
@@ -42,6 +45,10 @@ export default function App() {
     fetchDreamEntries()
       .then(setDreamEntries)
       .catch((err) => console.error("Failed to load dream journal entries:", err));
+    // Decides whether the "Coach Dashboard" button below even appears --
+    // a 403 from /coach/status (i.e. not a coach) is the expected result
+    // for almost every account, not an error.
+    checkIsCoach().then(setIsCoach);
   }, [session]);
 
   const constitutionTaken = constitutionAnswers.length >= CONSTITUTION_SCENARIOS.length;
@@ -116,6 +123,19 @@ export default function App() {
           )}
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11.5, color: COLORS.inkDim }}>
             Logged in as {session.user.email}
+            {isCoach && (
+              <button
+                onClick={() => setView("coach")}
+                style={{
+                  padding: "4px 12px", borderRadius: 6, cursor: "pointer", fontSize: 11,
+                  border: `1px solid ${view === "coach" ? COLORS.violet : COLORS.grid}`,
+                  background: view === "coach" ? `${COLORS.violet}18` : "transparent",
+                  color: view === "coach" ? COLORS.violet : COLORS.inkDim,
+                }}
+              >
+                🧭 Coach Dashboard
+              </button>
+            )}
             <button
               onClick={() => supabase.auth.signOut()}
               style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 11, cursor: "pointer" }}
@@ -245,6 +265,7 @@ export default function App() {
         {view === "microbiome" && <MicrobiomeView />}
         {view === "other" && <OtherLanesView />}
         {view === "edf" && <VerificationHub />}
+        {view === "coach" && isCoach && <CoachDashboardView />}
 
         <div style={{ marginTop: 28, fontSize: 11, color: COLORS.inkDim, opacity: 0.7 }}>
           * Waveforms and band values are representative — modeled on the published characteristics of the

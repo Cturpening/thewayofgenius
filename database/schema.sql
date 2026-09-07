@@ -29,6 +29,13 @@ create extension if not exists "pgcrypto"; -- gives us gen_random_uuid()
 create table if not exists public.profiles (
     id uuid primary key references auth.users (id) on delete cascade,
     display_name text,
+    -- Single-coach model for now, matching a private beta with one coach
+    -- (Chelsey) directly overseeing every account: no separate coach-client
+    -- assignment table, just "is this account allowed to see across
+    -- others." Set by hand in the Supabase SQL editor (there's no admin UI
+    -- for this yet, deliberately -- see backend/README.md's coach-dashboard
+    -- section). Revisit if this ever needs more than one coach.
+    is_coach boolean not null default false,
     created_at timestamptz not null default now()
 );
 
@@ -231,6 +238,68 @@ create policy "Users manage their own calendar events"
     on public.calendar_events for all
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Coach notes
+--
+-- Free-text observations the coach (see profiles.is_coach above) leaves on
+-- a client's account -- an append-only log (dated entries, not one
+-- editable field), same reasoning as the follow-through log: what the
+-- coach actually noted at the time shouldn't retroactively change. Backend
+-- connects directly to Postgres (see flagged_events' note on this same
+-- point below), so RLS here is a second line of defense, not the real
+-- enforcement boundary -- app/main.py's get_current_coach_id dependency is.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.coach_notes (
+    id uuid primary key default gen_random_uuid(),
+    coach_id uuid not null references auth.users (id) on delete cascade,
+    client_id uuid not null references auth.users (id) on delete cascade,
+    note text not null,
+    created_at timestamptz not null default now()
+);
+
+create index if not exists coach_notes_client_id_idx
+    on public.coach_notes (client_id, created_at desc);
+
+alter table public.coach_notes enable row level security;
+
+create policy "Coaches manage the notes they wrote"
+    on public.coach_notes for all
+    using (auth.uid() = coach_id)
+    with check (auth.uid() = coach_id);
+
+-- ---------------------------------------------------------------------------
+-- Symbol validations
+--
+-- Makes real one of the three confirmation paths described in
+-- protocols/11_Coherence_Dream_Criteria_Tagging_Density.md: "a symbol's
+-- meaning is confirmed only when the user self-identifies it, a coach
+-- validates it, or it's appeared consistently five or more times." This
+-- table is the coach-validation path -- keyed on (client_id, tag) rather
+-- than a specific dream entry, since a symbol's status belongs to the
+-- symbol across a user's whole history, not one occurrence of it. The
+-- other two confirmation paths (self-ID, 5+ recurrence) aren't built yet.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.symbol_validations (
+    id uuid primary key default gen_random_uuid(),
+    client_id uuid not null references auth.users (id) on delete cascade,
+    tag text not null,
+    validated_by uuid not null references auth.users (id) on delete cascade,
+    validated_at timestamptz not null default now(),
+    unique (client_id, tag)
+);
+
+create index if not exists symbol_validations_client_id_idx
+    on public.symbol_validations (client_id);
+
+alter table public.symbol_validations enable row level security;
+
+create policy "Coaches manage the validations they made"
+    on public.symbol_validations for all
+    using (auth.uid() = validated_by)
+    with check (auth.uid() = validated_by);
 
 -- ---------------------------------------------------------------------------
 -- Flagged events (safety escalation)

@@ -107,11 +107,26 @@ def generate_reflection(user_content: str) -> str:
     return _FALLBACK_NOTE
 
 
-def generate_dream_reflection(entry_text: str, tags: list[str]) -> str:
-    """Edin's reflective note on a dream journal entry."""
+def generate_dream_reflection(entry_text: str, tags: list[str], confirmed_tags: list[str] | None = None) -> str:
+    """Edin's reflective note on a dream journal entry.
+
+    `confirmed_tags` -- the subset of `tags` a coach has validated (see
+    app/main.py's /coach/clients/{id}/symbol-validations and
+    protocols/11_Coherence_Dream_Criteria_Tagging_Density.md's confirmation
+    rule) -- are named explicitly as confirmed; everything else stays
+    tentative, per that rule and the "Tags, symbols, parts, and archetypes"
+    section of the system prompt. Only the coach-validation confirmation
+    path is wired in yet, not self-ID or 5+ recurrence.
+    """
+    confirmed_tags = confirmed_tags or []
+    tag_lines = []
+    if tags:
+        for tag in tags:
+            status = "confirmed by a coach" if tag in confirmed_tags else "not yet confirmed"
+            tag_lines.append(f"{tag} ({status})")
     return generate_reflection(
         f"Dream journal entry:\n{entry_text}\n\n"
-        f"Tags on this entry: {', '.join(tags) if tags else '(none)'}\n\n"
+        f"Tags on this entry: {', '.join(tag_lines) if tag_lines else '(none)'}\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )
 
