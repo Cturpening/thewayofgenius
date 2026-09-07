@@ -13,6 +13,19 @@ class Settings(BaseSettings):
     database_url: str = ""
     environment: str = "development"
 
+    # Comma-separated list of frontend origins allowed to call this API
+    # (see app/main.py's CORSMiddleware setup). localhost:5173 (the Vite
+    # dev server default) is always allowed regardless of this setting, so
+    # local development never breaks if it's unset -- set this in
+    # production to your real deployed frontend URL(s), e.g.
+    # "https://thewayofgenius.app,https://www.thewayofgenius.app".
+    allowed_origins: str = ""
+
+    @property
+    def cors_origins(self) -> list[str]:
+        extra = [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        return ["http://localhost:5173", *extra]
+
     # Supabase project URL + anon/publishable key. This backend talks to
     # Postgres directly (see app/database.py), not through PostgREST, so
     # these are used only to verify a caller's session token against

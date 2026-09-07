@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_coach_id, get_current_user_id
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
+from app.config import get_settings
 from app.database import engine, get_db
 from app.edin_ai import (
     EdinAIError,
@@ -60,11 +61,12 @@ logger = logging.getLogger("edin")
 
 app = FastAPI(title="Edin API", version="0.1.0")
 
-# The frontend dev server runs on 5173 by default (see frontend/vite.config.js).
-# Add your deployed frontend's URL here too once you have one.
+# The frontend dev server (localhost:5173) is always allowed; set
+# ALLOWED_ORIGINS in .env to your deployed frontend's real URL(s) --
+# see app/config.py's cors_origins.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=get_settings().cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

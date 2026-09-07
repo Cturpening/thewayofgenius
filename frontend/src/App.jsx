@@ -18,7 +18,7 @@ import FutureTechView from "./features/planned/FutureTechView";
 import EdinChatView from "./features/chat/EdinChatView";
 import { EDIN_GREETINGS } from "./features/chat/data/greetings";
 import { useAuth } from "./features/auth/useAuth";
-import AuthView from "./features/auth/AuthView";
+import LandingView from "./features/landing/LandingView";
 import { supabase } from "./lib/supabaseClient";
 import CoachDashboardView from "./features/coach-dashboard/CoachDashboardView";
 import { checkIsCoach } from "./features/coach-dashboard/api";
@@ -71,7 +71,7 @@ export default function App() {
     return <div style={{ padding: 40, color: COLORS.inkDim, fontSize: 13 }}>Loading...</div>;
   }
   if (session === null) {
-    return <AuthView />;
+    return <LandingView />;
   }
 
   return (
