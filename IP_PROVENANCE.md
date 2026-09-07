@@ -163,6 +163,24 @@ and was deliberately hand-built (see protocol 03 and the "exact
 escalation timing" work), so it deserves the same care, not a drive-by
 edit inside an unrelated feature's diff.
 
+## 8. Goals linked into follow-through and calendar (2026-09-07)
+
+- **Conceptual origin:** Chelsey — the decision (made explicitly in this
+  session, in response to entry 7's flagged gap) that a goal should
+  aggregate its own real track record rather than sit disconnected from
+  follow-through and the calendar, and that this should reuse the
+  existing "linked goal" concept the calendar UI's own copy already
+  described but never implemented.
+- **Implementation:** Claude — the nullable `goal_id` foreign keys on
+  `follow_through_log` and `calendar_events` (`on delete set null`, so
+  deleting a goal keeps the historical record rather than erasing it),
+  the cross-user ownership check (`_verify_goal_ownership` in
+  `main.py`), and the frontend goal-picker UI plus the per-goal
+  follow-through rollup ("N entries · X% followed through").
+- **Novelty flag:** No — standard relational modeling (a nullable FK
+  plus an ownership check) in service of a product decision, not a new
+  method.
+
 ---
 
 ## Running list flagged for Charles

@@ -118,20 +118,26 @@ class ConstitutionResultUpdateResponse(BaseModel):
 class FollowThroughCreate(BaseModel):
     source: Literal["dream", "lesson", "constitution", "coaching", "other"]
     intention: str
+    # Optional -- ties this entry into a goal's own track record. Must
+    # already belong to the caller; see app/main.py's ownership check.
+    goal_id: Optional[UUID] = None
 
 
 class FollowThroughUpdate(BaseModel):
-    """All fields optional — intention, status, note, and emotional_shift can all be edited after creation."""
+    """All fields optional — intention, status, note, emotional_shift, and
+    goal_id can all be edited after creation."""
 
     intention: Optional[str] = None
     status: Optional[Literal["pending", "did", "partial", "didnt"]] = None
     note: Optional[str] = None
     emotional_shift: Optional[Literal["higher", "same", "lower"]] = None
+    goal_id: Optional[UUID] = None
 
 
 class FollowThroughOut(BaseModel):
     id: UUID
     user_id: UUID
+    goal_id: Optional[UUID] = None
     source: str
     intention: str
     status: str
@@ -192,11 +198,14 @@ class CalendarEventCreate(BaseModel):
     day: Literal["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     label: str
     category: Literal["health", "goal", "incubation", "journal", "biofeedback", "other"]
+    # Optional -- must already belong to the caller; see app/main.py's ownership check.
+    goal_id: Optional[UUID] = None
 
 
 class CalendarEventOut(BaseModel):
     id: UUID
     user_id: UUID
+    goal_id: Optional[UUID] = None
     day: str
     label: str
     category: str

@@ -3,6 +3,7 @@ import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import { CALENDAR_CATEGORIES, GOAL_MODALITIES, WEEK_DAYS, WEEK_SESSIONS } from "./data/calendarData";
 import { fetchGoals, createGoal, updateGoal, deleteGoal, fetchCalendarEvents, createCalendarEvent, deleteCalendarEvent } from "./api";
+import { fetchFollowThroughs } from "../follow-through/api";
 
 const PROGRESS_STEPS = [0, 0.25, 0.5, 0.75, 1];
 
@@ -11,16 +12,22 @@ export default function GoalsAndCalendarLens() {
   const [newGoalName, setNewGoalName] = useState("");
   const [newGoalModality, setNewGoalModality] = useState("sleep");
 
+  // Fetched purely to compute each goal's own follow-through rollup below --
+  // this view doesn't create or edit follow-through entries itself.
+  const [followThroughs, setFollowThroughs] = useState([]);
+
   const [events, setEvents] = useState([]);
   const [newLabel, setNewLabel] = useState("");
   const [newCategory, setNewCategory] = useState("health");
   const [newDay, setNewDay] = useState("Mon");
+  const [newEventGoalId, setNewEventGoalId] = useState(null);
 
   const [crisisMessage, setCrisisMessage] = useState(null);
 
   useEffect(() => {
     fetchGoals().then(setGoals).catch((err) => console.error("Failed to load goals:", err));
     fetchCalendarEvents().then(setEvents).catch((err) => console.error("Failed to load calendar events:", err));
+    fetchFollowThroughs().then(setFollowThroughs).catch((err) => console.error("Failed to load follow-through log:", err));
   }, []);
 
   const addGoal = () => {
@@ -46,13 +53,14 @@ export default function GoalsAndCalendarLens() {
 
   const addEvent = () => {
     if (!newLabel.trim()) return;
-    createCalendarEvent({ day: newDay, label: newLabel.trim(), category: newCategory })
+    createCalendarEvent({ day: newDay, label: newLabel.trim(), category: newCategory, goalId: newEventGoalId })
       .then(({ event, crisisResponse }) => {
         setEvents((cur) => [...cur, event]);
         if (crisisResponse) setCrisisMessage(crisisResponse);
       })
       .catch((err) => console.error("Failed to add calendar event:", err));
     setNewLabel("");
+    setNewEventGoalId(null);
   };
 
   const removeEvent = (id) => {
@@ -95,6 +103,11 @@ export default function GoalsAndCalendarLens() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {goals.map((g) => {
             const modMeta = GOAL_MODALITIES.find((m) => m.key === g.modality) || GOAL_MODALITIES[GOAL_MODALITIES.length - 1];
+            const linked = followThroughs.filter((f) => f.goalId === g.id);
+            const resolved = linked.filter((f) => f.status !== "pending");
+            const followThroughRate = resolved.length > 0
+              ? Math.round((resolved.filter((f) => f.status === "did").length / resolved.length) * 100)
+              : null;
             return (
               <div key={g.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
@@ -127,6 +140,12 @@ export default function GoalsAndCalendarLens() {
                     </button>
                   ))}
                 </div>
+                {linked.length > 0 && (
+                  <div style={{ fontSize: 10, color: COLORS.inkDim, marginTop: 6 }}>
+                    🎯 {linked.length} follow-through {linked.length === 1 ? "entry" : "entries"}
+                    {followThroughRate !== null && ` · ${followThroughRate}% followed through`}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -182,12 +201,18 @@ export default function GoalsAndCalendarLens() {
                 {d.time && <div style={{ fontSize: 9, color: COLORS.gold, marginTop: 3 }}>{d.time}</div>}
                 {added.map((e) => {
                   const catMeta = CALENDAR_CATEGORIES.find((c) => c.key === e.category);
+                  const linkedGoal = goals.find((g) => g.id === e.goalId);
                   return (
-                    <div key={e.id} onClick={() => removeEvent(e.id)} title="Click to remove" style={{
-                      marginTop: 4, fontSize: 8.5, color: catMeta.color, background: `${catMeta.color}1c`,
-                      borderRadius: 6, padding: "2px 4px", cursor: "pointer", lineHeight: 1.3,
-                    }}>
-                      {e.label}
+                    <div
+                      key={e.id}
+                      onClick={() => removeEvent(e.id)}
+                      title={linkedGoal ? `Linked to "${linkedGoal.name}" — click to remove` : "Click to remove"}
+                      style={{
+                        marginTop: 4, fontSize: 8.5, color: catMeta.color, background: `${catMeta.color}1c`,
+                        borderRadius: 6, padding: "2px 4px", cursor: "pointer", lineHeight: 1.3,
+                      }}
+                    >
+                      {linkedGoal && "🎯 "}{e.label}
                     </div>
                   );
                 })}
@@ -244,6 +269,36 @@ export default function GoalsAndCalendarLens() {
           ))}
         </div>
 
+        {goals.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            <span style={{ fontSize: 10, color: COLORS.inkDim }}>LINK TO A GOAL (OPTIONAL):</span>
+            <button
+              onClick={() => setNewEventGoalId(null)}
+              style={{
+                padding: "4px 10px", borderRadius: 999, fontSize: 10.5, cursor: "pointer",
+                border: `1px solid ${COLORS.grid}`,
+                background: newEventGoalId === null ? `${COLORS.inkDim}22` : "transparent",
+                color: COLORS.inkDim,
+              }}
+            >
+              None
+            </button>
+            {goals.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setNewEventGoalId(g.id)}
+                style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 10.5, cursor: "pointer",
+                  border: `1px solid ${newEventGoalId === g.id ? COLORS.gold : COLORS.grid}`,
+                  background: newEventGoalId === g.id ? `${COLORS.gold}22` : "transparent",
+                  color: newEventGoalId === g.id ? COLORS.gold : COLORS.inkDim,
+                }}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8 }}>
           <input
             value={newLabel}

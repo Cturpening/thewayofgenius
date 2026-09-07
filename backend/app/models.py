@@ -63,6 +63,7 @@ class FollowThroughLogEntry(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False)
+    goal_id = Column(UUID(as_uuid=True), nullable=True)
     source = Column(Text, nullable=False)
     intention = Column(Text, nullable=False)
     status = Column(Text, nullable=False, default="pending")
@@ -92,6 +93,7 @@ class CalendarEvent(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False)
+    goal_id = Column(UUID(as_uuid=True), nullable=True)
     day = Column(Text, nullable=False)
     label = Column(Text, nullable=False)
     category = Column(Text, nullable=False)

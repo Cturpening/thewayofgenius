@@ -77,6 +77,16 @@ def _run_track_b(db: Session, user_id: UUID, combined_text: str) -> str | None:
     return override_message(tier)
 
 
+def _verify_goal_ownership(db: Session, user_id: UUID, goal_id: UUID) -> None:
+    """Raises 404 if goal_id doesn't exist or isn't the caller's -- used
+    wherever a follow-through entry or calendar event links itself to a
+    goal, so a user can never link to (or discover the existence of)
+    another user's goal."""
+    exists = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == user_id).first()
+    if exists is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+
 @app.get("/health")
 def health():
     """Liveness check: is the API process up at all? Doesn't touch the database."""
@@ -285,8 +295,12 @@ def update_constitution_result(
 def create_follow_through(
     payload: FollowThroughCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
 ):
+    if payload.goal_id:
+        _verify_goal_ownership(db, user_id, payload.goal_id)
     crisis_response = _run_track_b(db, user_id, payload.intention)
-    entry = FollowThroughLogEntry(user_id=user_id, source=payload.source, intention=payload.intention)
+    entry = FollowThroughLogEntry(
+        user_id=user_id, goal_id=payload.goal_id, source=payload.source, intention=payload.intention
+    )
     db.add(entry)
     db.commit()
     db.refresh(entry)
@@ -319,6 +333,11 @@ def update_follow_through(
         raise HTTPException(status_code=404, detail="Follow-through log entry not found")
 
     updates = payload.model_dump(exclude_unset=True)
+
+    # A goal_id of None here means an explicit unlink (allowed with no
+    # ownership check needed) -- only a real value needs verifying.
+    if updates.get("goal_id"):
+        _verify_goal_ownership(db, user_id, updates["goal_id"])
 
     # intention and note are both deliberate, discrete saves here (not
     # resent on every unrelated click), so no diffing needed -- just scan
@@ -405,8 +424,12 @@ def delete_goal(goal_id: UUID, db: Session = Depends(get_db), user_id: UUID = De
 def create_calendar_event(
     payload: CalendarEventCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
 ):
+    if payload.goal_id:
+        _verify_goal_ownership(db, user_id, payload.goal_id)
     crisis_response = _run_track_b(db, user_id, payload.label)
-    event = CalendarEvent(user_id=user_id, day=payload.day, label=payload.label, category=payload.category)
+    event = CalendarEvent(
+        user_id=user_id, goal_id=payload.goal_id, day=payload.day, label=payload.label, category=payload.category
+    )
     db.add(event)
     db.commit()
     db.refresh(event)

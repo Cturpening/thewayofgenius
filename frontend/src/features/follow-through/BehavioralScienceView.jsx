@@ -3,11 +3,14 @@ import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import { FOLLOWTHROUGH_SOURCES, INITIAL_PATTERNS, STATUS_META } from "./data/followThroughData";
 import { fetchFollowThroughs, createFollowThrough, updateFollowThrough } from "./api";
+import { fetchGoals } from "../goals-calendar/api";
 
 export default function BehavioralScienceView() {
   const [followThroughs, setFollowThroughs] = useState([]);
   const [intention, setIntention] = useState("");
   const [source, setSource] = useState("dream");
+  const [goals, setGoals] = useState([]);
+  const [linkedGoalId, setLinkedGoalId] = useState(null);
   const [patterns, setPatterns] = useState(INITIAL_PATTERNS);
   const [newPattern, setNewPattern] = useState("");
   const [crisisMessage, setCrisisMessage] = useState(null);
@@ -16,15 +19,21 @@ export default function BehavioralScienceView() {
     fetchFollowThroughs()
       .then(setFollowThroughs)
       .catch((err) => console.error("Failed to load follow-through log:", err));
+    // Goals feed the optional "link to a goal" picker below -- lets a
+    // follow-through entry roll up into that goal's own track record.
+    fetchGoals()
+      .then(setGoals)
+      .catch((err) => console.error("Failed to load goals:", err));
   }, []);
 
   const addFollowThrough = async () => {
     if (!intention.trim()) return;
     try {
-      const { entry, crisisResponse } = await createFollowThrough({ source, intention: intention.trim() });
+      const { entry, crisisResponse } = await createFollowThrough({ source, intention: intention.trim(), goalId: linkedGoalId });
       setFollowThroughs([entry, ...followThroughs]);
       if (crisisResponse) setCrisisMessage(crisisResponse);
       setIntention("");
+      setLinkedGoalId(null);
     } catch (err) {
       console.error("Failed to log follow-through:", err);
     }
@@ -114,6 +123,36 @@ export default function BehavioralScienceView() {
             </button>
           ))}
         </div>
+        {goals.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            <span style={{ fontSize: 10, color: COLORS.inkDim }}>LINK TO A GOAL (OPTIONAL):</span>
+            <button
+              onClick={() => setLinkedGoalId(null)}
+              style={{
+                padding: "4px 10px", borderRadius: 999, fontSize: 10.5, cursor: "pointer",
+                border: `1px solid ${linkedGoalId === null ? COLORS.grid : COLORS.grid}`,
+                background: linkedGoalId === null ? `${COLORS.inkDim}22` : "transparent",
+                color: COLORS.inkDim,
+              }}
+            >
+              None
+            </button>
+            {goals.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => setLinkedGoalId(g.id)}
+                style={{
+                  padding: "4px 10px", borderRadius: 999, fontSize: 10.5, cursor: "pointer",
+                  border: `1px solid ${linkedGoalId === g.id ? COLORS.gold : COLORS.grid}`,
+                  background: linkedGoalId === g.id ? `${COLORS.gold}22` : "transparent",
+                  color: linkedGoalId === g.id ? COLORS.gold : COLORS.inkDim,
+                }}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           <input
             value={intention}
@@ -137,6 +176,7 @@ export default function BehavioralScienceView() {
               key={f.id}
               entry={f}
               srcMeta={FOLLOWTHROUGH_SOURCES.find((s) => s.key === f.source)}
+              goalName={goals.find((g) => g.id === f.goalId)?.name}
               onSetStatus={setStatus}
               onSetEmotionalShift={setEmotionalShift}
               onSaveNote={saveNote}
@@ -193,7 +233,7 @@ export default function BehavioralScienceView() {
   );
 }
 
-function FollowThroughRow({ entry, srcMeta, onSetStatus, onSetEmotionalShift, onSaveNote, onSaveIntention }) {
+function FollowThroughRow({ entry, srcMeta, goalName, onSetStatus, onSetEmotionalShift, onSaveNote, onSaveIntention }) {
   const [noteDraft, setNoteDraft] = useState(entry.note || "");
   const noteDirty = noteDraft.trim() !== (entry.note || "");
   const [editingIntention, setEditingIntention] = useState(false);
@@ -245,7 +285,14 @@ function FollowThroughRow({ entry, srcMeta, onSetStatus, onSetEmotionalShift, on
         )}
         <span style={{ fontSize: 9, color: srcMeta.color, whiteSpace: "nowrap", flexShrink: 0 }}>{srcMeta.label.toUpperCase()}</span>
       </div>
-      <div style={{ fontSize: 10, color: COLORS.inkDim, marginBottom: 8 }}>{entry.date}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: COLORS.inkDim }}>{entry.date}</div>
+        {goalName && (
+          <div style={{ fontSize: 9.5, color: COLORS.gold, background: `${COLORS.gold}18`, borderRadius: 999, padding: "2px 8px" }}>
+            🎯 {goalName}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
         <input

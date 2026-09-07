@@ -125,43 +125,15 @@ create policy "Users manage their own constitution results"
     with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
--- Follow-through log
---
--- Tracks whether a user actually acted on an intention that came out of a
--- dream, a lesson, a Constitution session, or a coaching session.
--- ---------------------------------------------------------------------------
-
-create table if not exists public.follow_through_log (
-    id uuid primary key default gen_random_uuid(),
-    user_id uuid not null references auth.users (id) on delete cascade,
-    source text not null check (source in ('dream', 'lesson', 'constitution', 'coaching', 'other')),
-    intention text not null,
-    status text not null default 'pending' check (status in ('pending', 'did', 'partial', 'didnt')),
-    note text,
-    emotional_shift text check (emotional_shift in ('higher', 'same', 'lower')),
-    edin_note text, -- Edin's reflection once status moves past 'pending' (there's nothing to reflect on before then)
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-);
-
-create index if not exists follow_through_log_user_id_idx
-    on public.follow_through_log (user_id, created_at desc);
-
-alter table public.follow_through_log enable row level security;
-
-create policy "Users manage their own follow-through log"
-    on public.follow_through_log for all
-    using (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
-
--- ---------------------------------------------------------------------------
 -- Goals
 --
 -- `modality` is a real constrained type, not the decorative free-text label
 -- the prototype UI used before this table existed -- it names which lane of
 -- the app actually feeds progress on this goal (or 'career' /  'other' for
 -- the honest case of no real data source yet). See
--- frontend/src/features/goals-calendar/GoalsAndCalendarLens.jsx.
+-- frontend/src/features/goals-calendar/GoalsAndCalendarLens.jsx. Defined
+-- before follow-through log and calendar events below since both carry an
+-- optional goal_id referencing this table.
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.goals (
@@ -185,6 +157,45 @@ create policy "Users manage their own goals"
     with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
+-- Follow-through log
+--
+-- Tracks whether a user actually acted on an intention that came out of a
+-- dream, a lesson, a Constitution session, or a coaching session.
+-- `goal_id` is optional -- a follow-through entry can (but doesn't have to)
+-- roll up into a goal's own track record, e.g. a Constitution intention
+-- that's really in service of an existing goal. `on delete set null` rather
+-- than cascade: deleting a goal shouldn't erase the historical record of
+-- whether someone followed through, just un-link it.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.follow_through_log (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    goal_id uuid references public.goals (id) on delete set null,
+    source text not null check (source in ('dream', 'lesson', 'constitution', 'coaching', 'other')),
+    intention text not null,
+    status text not null default 'pending' check (status in ('pending', 'did', 'partial', 'didnt')),
+    note text,
+    emotional_shift text check (emotional_shift in ('higher', 'same', 'lower')),
+    edin_note text, -- Edin's reflection once status moves past 'pending' (there's nothing to reflect on before then)
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists follow_through_log_user_id_idx
+    on public.follow_through_log (user_id, created_at desc);
+
+create index if not exists follow_through_log_goal_id_idx
+    on public.follow_through_log (goal_id);
+
+alter table public.follow_through_log enable row level security;
+
+create policy "Users manage their own follow-through log"
+    on public.follow_through_log for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Calendar events
 --
 -- The user-added half of the Goals & Calendar view -- "day" is a weekday
@@ -193,17 +204,23 @@ create policy "Users manage their own goals"
 -- data, so they aren't in this table). Real Google Calendar sync is future
 -- work per the architecture note in GoalsAndCalendarLens.jsx -- this table
 -- is Edin's own record, which a sync would mirror onto Calendar, not the
--- other way around.
+-- other way around. `goal_id` makes real the "linked goal" extended-property
+-- data that note always described -- optional, same on-delete behavior as
+-- follow_through_log.goal_id above.
 -- ---------------------------------------------------------------------------
 
 create table if not exists public.calendar_events (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users (id) on delete cascade,
+    goal_id uuid references public.goals (id) on delete set null,
     day text not null check (day in ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')),
     label text not null,
     category text not null check (category in ('health', 'goal', 'incubation', 'journal', 'biofeedback', 'other')),
     created_at timestamptz not null default now()
 );
+
+create index if not exists calendar_events_goal_id_idx
+    on public.calendar_events (goal_id);
 
 create index if not exists calendar_events_user_id_idx
     on public.calendar_events (user_id, created_at desc);

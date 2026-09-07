@@ -48,6 +48,7 @@ export async function deleteGoal(id) {
 function fromApiEvent(apiEvent) {
   return {
     id: apiEvent.id,
+    goalId: apiEvent.goal_id || null,
     day: apiEvent.day,
     label: apiEvent.label,
     category: apiEvent.category,
@@ -60,10 +61,11 @@ export async function fetchCalendarEvents() {
 }
 
 // Returns { event, crisisResponse } — same crisis-detection contract as createGoal above.
-export async function createCalendarEvent({ day, label, category }) {
+// `goalId` is optional -- makes real the "linked goal" the week grid already described.
+export async function createCalendarEvent({ day, label, category, goalId }) {
   const created = await apiRequest(`/calendar-events`, {
     method: "POST",
-    body: JSON.stringify({ day, label, category }),
+    body: JSON.stringify({ day, label, category, goal_id: goalId || null }),
   });
   return { event: fromApiEvent(created.event), crisisResponse: created.crisis_response || null };
 }

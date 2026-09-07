@@ -14,6 +14,7 @@ function fromApiEntry(apiEntry) {
   return {
     id: apiEntry.id,
     date: formatEntryDate(apiEntry.created_at),
+    goalId: apiEntry.goal_id || null,
     source: apiEntry.source,
     intention: apiEntry.intention,
     status: apiEntry.status,
@@ -31,20 +32,22 @@ export async function fetchFollowThroughs() {
 // Returns { entry, crisisResponse } — crisisResponse is only present when
 // Track B's crisis detection fired on this save's intention/note text (see
 // backend/app/crisis_detection.py); surface it exactly as given, unmodified.
-export async function createFollowThrough({ source, intention }) {
+// `goalId` is optional -- ties this entry into a goal's own track record.
+export async function createFollowThrough({ source, intention, goalId }) {
   const created = await apiRequest(`/follow-through-log`, {
     method: "POST",
-    body: JSON.stringify({ source, intention }),
+    body: JSON.stringify({ source, intention, goal_id: goalId || null }),
   });
   return { entry: fromApiEntry(created.entry), crisisResponse: created.crisis_response || null };
 }
 
-export async function updateFollowThrough(id, { intention, status, note, emotionalShift }) {
+export async function updateFollowThrough(id, { intention, status, note, emotionalShift, goalId }) {
   const body = {};
   if (intention !== undefined) body.intention = intention;
   if (status !== undefined) body.status = status;
   if (note !== undefined) body.note = note;
   if (emotionalShift !== undefined) body.emotional_shift = emotionalShift;
+  if (goalId !== undefined) body.goal_id = goalId || null;
 
   const updated = await apiRequest(`/follow-through-log/${id}`, {
     method: "PATCH",
