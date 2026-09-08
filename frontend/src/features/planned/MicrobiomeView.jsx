@@ -192,8 +192,8 @@ export default function MicrobiomeView() {
         <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.6, marginBottom: 14 }}>
           The intended shape of this: upload results you already have from a third-party test
           (Viome, Tiny Health, Ombre, ZOE, or similar) — manual entry of what your own report already
-          told you, not raw file parsing. This isn't wired up yet, and won't be turned on until Vanessa
-          confirms it's compatible with the real data methods — the goal is a real, usable field, not a
+          told you, not raw file parsing. This isn't wired up yet, and won't be turned on until it's
+          actually validated against the real data methods — the goal is a real, usable field, not a
           placeholder quietly holding red flags.
         </div>
         <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 8 }}>

@@ -47,8 +47,8 @@ export default function GeneticsSubconsciousView() {
           <div style={{ fontSize: 11, color: COLORS.inkDim, marginTop: 14, lineHeight: 1.6 }}>
             Deliberately kept at the category level, not specific SNPs — a lot of "behavior gene" claims
             in pop science are weaker than they sound, and this category shouldn't inherit that problem.
-            Real markers get named once a real panel and a real research partner (Dr. Gupta or Diverse
-            Vitality/ESAA) are actually in place.
+            Real markers get named once a real panel and a real research partner (Diverse Vitality/ESAA)
+            are actually in place.
           </div>
         </div>
       ) : (

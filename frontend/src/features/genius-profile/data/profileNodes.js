@@ -39,7 +39,7 @@ export const PROFILE_NODES = [
   },
   {
     key: "behavioral", label: "Behavioral", angle: 66, color: COLORS.inkDim, status: "planned",
-    detail: "Vanessa's lane — behavioral/environmental tracking via SandboxLife API.",
+    detail: "Planned behavioral/environmental tracking modality — not built yet.",
     stat: "—", statLabel: "no data yet",
     note: "Planned integration, not built. No numbers invented.",
     subs: [

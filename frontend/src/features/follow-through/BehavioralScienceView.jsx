@@ -78,10 +78,10 @@ export default function BehavioralScienceView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ background: `${COLORS.coral}14`, border: `1px solid ${COLORS.coral}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
-        Behavioral Sciences — her own coaching-behavior track, separate from Vanessa's SandboxLife lane
-        above. Core signal: real-world follow-through — did an insight actually become an action, built
-        on the real Insight_Event and Emotional_Shift_Score fields from her Beta Client Workflow
-        Protocol. Habit and pattern logging runs alongside it as supporting context, not the main event.
+        Behavioral Sciences — her own coaching-behavior track, separate from the planned Environmental /
+        Behavioral lane above. Core signal: real-world follow-through — did an insight actually become an
+        action, built on the real Insight_Event and Emotional_Shift_Score fields from her Beta Client
+        Workflow Protocol. Habit and pattern logging runs alongside it as supporting context, not the main event.
       </div>
 
       {crisisMessage && (
@@ -227,7 +227,7 @@ export default function BehavioralScienceView() {
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
         Illustrative UI with two seeded examples — but the framing is real: perspective changes → belief
         changes → action changes, and follow-through is the actual, honest measure of whether that
-        happened. This is her own metadata, independent of whatever Vanessa's lane eventually adds.
+        happened. This is her own metadata, independent of whatever the Environmental / Behavioral lane eventually adds.
       </div>
     </div>
   );

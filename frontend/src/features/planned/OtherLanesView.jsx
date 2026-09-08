@@ -7,14 +7,13 @@ export default function OtherLanesView() {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ background: `${COLORS.violet}14`, border: `1px solid ${COLORS.violet}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         The remaining lanes from the full architecture — placeholders, not built. No numbers invented
-        for these; they wait until real data or a real partnership exists, same rule as everywhere else
-        in this prototype.
+        for these; they wait until real data exists, same rule as everywhere else in this prototype.
       </div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         <PlannedLaneCard
-          name="Environmental (Vanessa's Lane)"
+          name="Environmental / Behavioral"
           color={COLORS.inkDim}
-          desc="Vanessa Valore's lane, via SandboxLife API — cognitive load, environmental inputs. NDA signed between both teams; no data flowing yet. Separate from the Behavioral Sciences track below, which is her own."
+          desc="Cognitive load, environmental inputs, behavioral tracking — planned lane, not built yet. No data flowing. Separate from the Behavioral Sciences track below, which is already real."
         />
         <PlannedLaneCard
           name="HRV (Device-Assisted)"
