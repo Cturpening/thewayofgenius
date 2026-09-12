@@ -2,6 +2,8 @@
 edin_ai.py for how this gets chosen as primary or backup.
 """
 
+import time
+
 from google import genai
 from google.genai import types
 
@@ -45,13 +47,23 @@ def generate(system_prompt: str, user_content: str) -> str:
         raise ProviderError("GEMINI_API_KEY / GEMINI_MODEL not configured")
 
     client = genai.Client(api_key=settings.gemini_api_key)
-    try:
+    # Gemini's flash-tier models occasionally return a transient 503
+    # ("model is currently experiencing high demand") that clears within a
+    # couple seconds -- without a retry here, one bad moment permanently
+    # falls back to the generic canned note for that entry, which reads as
+    # Edin being dumb rather than as what it actually was: a dropped call.
+    attempts = 3
+    for attempt in range(attempts):
         try:
-            response = _call(client, settings.gemini_model, system_prompt, user_content, minimal_thinking=True)
-        except Exception:
-            response = _call(client, settings.gemini_model, system_prompt, user_content, minimal_thinking=False)
-    except Exception as exc:  # pragma: no cover -- network/SDK errors
-        raise ProviderError(f"Gemini call failed: {exc}") from exc
+            try:
+                response = _call(client, settings.gemini_model, system_prompt, user_content, minimal_thinking=True)
+            except Exception:
+                response = _call(client, settings.gemini_model, system_prompt, user_content, minimal_thinking=False)
+            break
+        except Exception as exc:  # pragma: no cover -- network/SDK errors
+            if attempt == attempts - 1:
+                raise ProviderError(f"Gemini call failed: {exc}") from exc
+            time.sleep(1.5 * (attempt + 1))
 
     text = (response.text or "").strip()
     if not text:
