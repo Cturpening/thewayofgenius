@@ -16,7 +16,7 @@ export default function DreamJournalView({ entries, setEntries }) {
   const [bookPage, setBookPage] = useState(-1); // -1 = cover, 0..n-1 = entries
   const [saving, setSaving] = useState(false);
   const [crisisMessage, setCrisisMessage] = useState(null);
-  const [deleteError, setDeleteError] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const allTags = Array.from(new Set(entries.flatMap((e) => e.tags)));
 
@@ -54,6 +54,7 @@ export default function DreamJournalView({ entries, setEntries }) {
       resetComposer();
     } catch (err) {
       console.error("Failed to save dream journal entry:", err);
+      setActionError("Couldn't save that entry -- " + err.message);
     } finally {
       setSaving(false);
     }
@@ -78,7 +79,7 @@ export default function DreamJournalView({ entries, setEntries }) {
     } catch (err) {
       console.error("Failed to delete dream journal entry:", err);
       setEntries(previousEntries);
-      setDeleteError("Couldn't delete that entry -- " + err.message);
+      setActionError("Couldn't delete that entry -- " + err.message);
     }
   };
 
@@ -223,11 +224,11 @@ export default function DreamJournalView({ entries, setEntries }) {
         </div>
       )}
 
-      {deleteError && (
+      {actionError && (
         <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontSize: 12.5, color: COLORS.coral }}>
-          <span>{deleteError}</span>
+          <span>{actionError}</span>
           <button
-            onClick={() => setDeleteError(null)}
+            onClick={() => setActionError(null)}
             style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer", flexShrink: 0 }}
           >
             Dismiss
