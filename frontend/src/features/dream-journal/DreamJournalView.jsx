@@ -16,6 +16,7 @@ export default function DreamJournalView({ entries, setEntries }) {
   const [bookPage, setBookPage] = useState(-1); // -1 = cover, 0..n-1 = entries
   const [saving, setSaving] = useState(false);
   const [crisisMessage, setCrisisMessage] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
 
   const allTags = Array.from(new Set(entries.flatMap((e) => e.tags)));
 
@@ -26,7 +27,10 @@ export default function DreamJournalView({ entries, setEntries }) {
   const saveEntry = async () => {
     if (!body.trim()) return;
     const manualTags = tagInput.split(",").map((t) => t.trim()).filter(Boolean);
-    const autoTags = detectAutoTags(body);
+    // Auto-detected tags only get added once, at creation -- editing an
+    // entry re-running this would silently re-add anything you removed,
+    // ignoring your edit. Once an entry exists, its tag list is yours.
+    const autoTags = editingId ? [] : detectAutoTags(body);
     const tags = Array.from(new Set([...manualTags, ...autoTags]));
     const lines = body.split("\n").filter((l) => l.trim().length > 0).map((text) => ({ text, highlighted: false }));
     const finalTitle = title.trim() || "Untitled entry";
@@ -63,12 +67,18 @@ export default function DreamJournalView({ entries, setEntries }) {
   };
 
   const deleteEntry = async (id) => {
+    if (!window.confirm("Delete this entry? This can't be undone.")) return;
+    // Remove it from view right away so the button never feels like it did
+    // nothing -- if the delete actually fails, put the entry back and say so.
+    const previousEntries = entries;
+    setEntries(entries.filter((e) => e.id !== id));
+    if (editingId === id) resetComposer();
     try {
       await deleteDreamEntry(id);
-      setEntries(entries.filter((e) => e.id !== id));
-      if (editingId === id) resetComposer();
     } catch (err) {
       console.error("Failed to delete dream journal entry:", err);
+      setEntries(previousEntries);
+      setDeleteError("Couldn't delete that entry -- " + err.message);
     }
   };
 
@@ -209,6 +219,18 @@ export default function DreamJournalView({ entries, setEntries }) {
             style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
           >
             I've seen this
+          </button>
+        </div>
+      )}
+
+      {deleteError && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, fontSize: 12.5, color: COLORS.coral }}>
+          <span>{deleteError}</span>
+          <button
+            onClick={() => setDeleteError(null)}
+            style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer", flexShrink: 0 }}
+          >
+            Dismiss
           </button>
         </div>
       )}
