@@ -179,7 +179,11 @@ def create_journal_entry(
             confirmed = _confirmed_tags(db, user_id, payload.tags)
             edin_note = generate_dream_reflection(combined_text, payload.tags, confirmed_tags=confirmed)
         except EdinAIError as exc:
-            logger.warning("AI reflection failed, falling back to canned note: %s", exc)
+            logger.warning("AI reflection failed: %s", exc)
+            # Don't silently keep whatever canned placeholder the frontend
+            # sent along -- that reads as a real, personalized reflection
+            # when it isn't one. Say plainly that it's unavailable instead.
+            edin_note = "Edin's reflection isn't available right now — try re-saving this entry in a bit."
 
     entry = DreamJournalEntry(
         user_id=user_id,
