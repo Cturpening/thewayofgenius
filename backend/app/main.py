@@ -309,7 +309,8 @@ def update_constitution_result(
         try:
             updates["edin_note"] = generate_constitution_reflection(result.dominant_orientation, updates["intention"])
         except EdinAIError as exc:
-            logger.warning("AI reflection failed, leaving prior edin_note in place: %s", exc)
+            logger.warning("AI reflection failed: %s", exc)
+            updates["edin_note"] = "Edin's reflection isn't available right now — try saving this intention again in a bit."
 
     for field, value in updates.items():
         setattr(result, field, value)
@@ -389,7 +390,8 @@ def update_follow_through(
                 updates.get("intention", entry.intention), entry.source, new_status
             )
         except EdinAIError as exc:
-            logger.warning("AI reflection failed, leaving prior edin_note in place: %s", exc)
+            logger.warning("AI reflection failed: %s", exc)
+            updates["edin_note"] = "Edin's reflection isn't available right now — it'll pick this up on the next status change."
 
     for field, value in updates.items():
         setattr(entry, field, value)
