@@ -114,10 +114,27 @@ def _confirmed_tags(db: Session, client_id: UUID, tags: list[str]) -> list[str]:
     return [row.tag for row in rows]
 
 
+def _supabase_project_ref() -> str | None:
+    """Pulls the project ref (the xxxxxxxx in https://xxxxxxxx.supabase.co)
+    out of SUPABASE_URL -- surfaced in /health so which Supabase project
+    this backend is actually talking to is a one-second check, not
+    something that requires cross-referencing .env files and running SQL
+    to reverse-engineer (see the "two different Supabase projects" saga
+    this was built after)."""
+    url = get_settings().supabase_url
+    if not url:
+        return None
+    host = url.removeprefix("https://").removeprefix("http://").split("/")[0]
+    return host.removesuffix(".supabase.co") or None
+
+
 @app.get("/health")
 def health():
-    """Liveness check: is the API process up at all? Doesn't touch the database."""
-    return {"status": "ok"}
+    """Liveness check: is the API process up at all? Doesn't touch the
+    database. Also reports which Supabase project this backend is
+    configured for -- check this first whenever something looks like it's
+    "not saving" or "not showing up," before assuming a code bug."""
+    return {"status": "ok", "supabase_project": _supabase_project_ref()}
 
 
 @app.get("/health/db")

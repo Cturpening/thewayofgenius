@@ -15,6 +15,22 @@ The project has three parts:
 
 ---
 
+## Which Supabase project is the real one?
+
+If you already have a Supabase account with more than one project in it,
+**check `GET /health` on the running backend before assuming** -- it
+returns `supabase_project`, the project ref (the `xxxxxxxx` in
+`https://xxxxxxxx.supabase.co`) that `backend/.env`'s `SUPABASE_URL` is
+actually pointing at. That's ground truth; a project's display name in the
+Supabase dashboard, or which tab you last had open, is not. This exists
+because two separate Supabase projects got created for this app early on,
+and hours went into a real vs. a decoy project before that was caught --
+don't repeat that. If you ever create a new Supabase project for this app
+by mistake, delete it (or clearly rename it, e.g. "UNUSED") the moment you
+realize it, rather than leaving it sitting there to be confused later.
+
+---
+
 ## Step 1 — Create a Supabase account and project
 
 [Supabase](https://supabase.com) gives you a free, hosted Postgres database
