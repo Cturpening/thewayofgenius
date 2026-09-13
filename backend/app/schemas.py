@@ -237,6 +237,19 @@ class ClientOut(BaseModel):
     goal_count: int
     # None means nothing has moved past "pending" yet -- distinct from 0%.
     follow_through_rate: Optional[int] = None
+    # Membership/billing status -- see database/schema.sql's note on these.
+    membership_plan: Optional[str] = None
+    membership_active: bool
+    membership_note: Optional[str] = None
+
+
+class ClientMembershipUpdate(BaseModel):
+    # All optional -- combined with model_dump(exclude_unset=True) in the
+    # endpoint, only the fields actually present in the request get
+    # touched, same pattern as every other PATCH in this app.
+    membership_plan: Optional[str] = None
+    membership_active: Optional[bool] = None
+    membership_note: Optional[str] = None
 
 
 class CoachNoteCreate(BaseModel):

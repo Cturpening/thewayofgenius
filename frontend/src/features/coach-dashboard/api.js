@@ -26,12 +26,31 @@ function fromApiClient(c) {
     constitutionCount: c.constitution_count,
     goalCount: c.goal_count,
     followThroughRate: c.follow_through_rate,
+    membershipPlan: c.membership_plan,
+    membershipActive: c.membership_active,
+    membershipNote: c.membership_note,
   };
 }
 
 export async function fetchClients() {
   const clients = await apiRequest(`/coach/clients`, { method: "GET" });
   return clients.map(fromApiClient);
+}
+
+// Manual Phase 1 billing tracking -- payment happens outside the app
+// (Zelle, wire, invoice) and this just records what you already know.
+// Same fields a real Stripe webhook will update automatically later.
+export async function updateClientMembership(clientId, { plan, active, note }) {
+  const body = {};
+  if (plan !== undefined) body.membership_plan = plan;
+  if (active !== undefined) body.membership_active = active;
+  if (note !== undefined) body.membership_note = note;
+
+  const updated = await apiRequest(`/coach/clients/${clientId}/membership`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  return fromApiClient(updated);
 }
 
 function fromApiDreamEntry(e) {

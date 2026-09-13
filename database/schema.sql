@@ -39,6 +39,17 @@ create table if not exists public.profiles (
     created_at timestamptz not null default now()
 );
 
+-- Membership/billing status -- set by hand by the coach for now (Phase 1:
+-- payment is collected outside the app -- Zelle, wire, invoice -- and the
+-- coach flips this manually), until a real Stripe integration writes to
+-- these same columns automatically instead. `alter ... add column if not
+-- exists` rather than folding into the create table above so this applies
+-- cleanly to a database that already has `profiles` from before this was
+-- added, not just a fresh install.
+alter table public.profiles add column if not exists membership_plan text;
+alter table public.profiles add column if not exists membership_active boolean not null default false;
+alter table public.profiles add column if not exists membership_note text;
+
 alter table public.profiles enable row level security;
 
 create policy "Users can view their own profile"

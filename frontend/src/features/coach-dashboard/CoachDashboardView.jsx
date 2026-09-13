@@ -10,6 +10,7 @@ import {
   fetchSymbolValidations,
   validateSymbol,
   unvalidateSymbol,
+  updateClientMembership,
 } from "./api";
 
 function formatDate(iso) {
@@ -68,13 +69,27 @@ export default function CoachDashboardView() {
                 {c.dreamEntryCount} dreams · {c.constitutionCount} constitutions
                 {c.followThroughRate !== null && ` · ${c.followThroughRate}% follow-through`}
               </div>
+              <div style={{ marginTop: 4 }}>
+                <span style={{
+                  fontSize: 9, padding: "1px 7px", borderRadius: 999,
+                  background: c.membershipActive ? `${COLORS.gold}22` : "transparent",
+                  color: c.membershipActive ? COLORS.gold : COLORS.inkDim,
+                  border: `1px solid ${c.membershipActive ? COLORS.gold : COLORS.grid}`,
+                }}>
+                  {c.membershipActive ? (c.membershipPlan || "active") : "no active plan"}
+                </span>
+              </div>
             </button>
           ))}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {selected ? (
-            <ClientDetail key={selected.id} client={selected} />
+            <ClientDetail
+              key={selected.id}
+              client={selected}
+              onClientUpdate={(updated) => setClients((cs) => cs.map((c) => (c.id === updated.id ? updated : c)))}
+            />
           ) : (
             <div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Select a client.</div>
           )}
@@ -84,7 +99,70 @@ export default function CoachDashboardView() {
   );
 }
 
-function ClientDetail({ client }) {
+function MembershipPanel({ client, onClientUpdate }) {
+  const [plan, setPlan] = useState(client.membershipPlan || "");
+  const [active, setActive] = useState(client.membershipActive);
+  const [note, setNote] = useState(client.membershipNote || "");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  const dirty = plan !== (client.membershipPlan || "") || active !== client.membershipActive || note !== (client.membershipNote || "");
+
+  const save = () => {
+    setSaving(true);
+    setSaveError(null);
+    updateClientMembership(client.id, { plan: plan.trim() || null, active, note: note.trim() || null })
+      .then(onClientUpdate)
+      .catch((err) => { console.error("Failed to update membership:", err); setSaveError(err.message); })
+      .finally(() => setSaving(false));
+  };
+
+  return (
+    <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px" }}>
+      <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>MEMBERSHIP / BILLING</div>
+      <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 12, lineHeight: 1.5 }}>
+        Manual for now — payment happens outside the app (Zelle, wire, invoice), so track it here yourself.
+        This becomes automatic once Stripe is wired in, same fields.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={plan}
+            onChange={(e) => setPlan(e.target.value)}
+            placeholder="Plan (e.g. private_200, cohort_fall2026)"
+            style={{ flex: 1, minWidth: 200, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.ink, cursor: "pointer" }}>
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            Active
+          </label>
+        </div>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Billing note (e.g. paid $200 via Zelle 9/13, renews 10/13)"
+          rows={2}
+          spellCheck
+          style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+        />
+        {saveError && <div style={{ fontSize: 11.5, color: COLORS.coral }}>Couldn't save -- {saveError}</div>}
+        <button
+          onClick={save}
+          disabled={!dirty || saving}
+          style={{
+            alignSelf: "flex-start", padding: "8px 16px", borderRadius: 8, border: "none",
+            background: COLORS.violet, color: "#FDFEFC", fontSize: 12.5,
+            cursor: dirty && !saving ? "pointer" : "default", opacity: dirty && !saving ? 1 : 0.5,
+          }}
+        >
+          {saving ? "Saving..." : "Save Membership"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ClientDetail({ client, onClientUpdate }) {
   const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionResults, setConstitutionResults] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -118,6 +196,8 @@ function ClientDetail({ client }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <MembershipPanel client={client} onClientUpdate={onClientUpdate} />
+
       <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px" }}>
         <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 10 }}>
           COACH NOTES ON {(client.displayName || "this account").toUpperCase()}

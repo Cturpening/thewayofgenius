@@ -22,6 +22,12 @@ class Profile(Base):
     id = Column(UUID(as_uuid=True), primary_key=True)
     display_name = Column(Text, nullable=True)
     is_coach = Column(Boolean, nullable=False, default=False)
+    # Membership/billing status -- see database/schema.sql's note on these
+    # three columns. Set by hand by the coach until real Stripe webhooks
+    # write to them instead.
+    membership_plan = Column(Text, nullable=True)
+    membership_active = Column(Boolean, nullable=False, default=False)
+    membership_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 

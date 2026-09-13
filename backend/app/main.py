@@ -34,6 +34,7 @@ from app.schemas import (
     CalendarEventResponse,
     ChatMessageScan,
     ChatMessageScanResponse,
+    ClientMembershipUpdate,
     ClientOut,
     CoachNoteCreate,
     CoachNoteOut,
@@ -529,6 +530,27 @@ def _client_or_404(db: Session, client_id: UUID) -> Profile:
     return client
 
 
+def _client_out(db: Session, client: Profile, coach_id: UUID) -> ClientOut:
+    resolved = (
+        db.query(FollowThroughLogEntry)
+        .filter(FollowThroughLogEntry.user_id == client.id, FollowThroughLogEntry.status != "pending")
+        .all()
+    )
+    rate = round(sum(1 for f in resolved if f.status == "did") / len(resolved) * 100) if resolved else None
+    return ClientOut(
+        id=client.id,
+        display_name=client.display_name,
+        is_self=(client.id == coach_id),
+        dream_entry_count=db.query(DreamJournalEntry).filter(DreamJournalEntry.user_id == client.id).count(),
+        constitution_count=db.query(GeniusConstitutionResult).filter(GeniusConstitutionResult.user_id == client.id).count(),
+        goal_count=db.query(Goal).filter(Goal.user_id == client.id).count(),
+        follow_through_rate=rate,
+        membership_plan=client.membership_plan,
+        membership_active=client.membership_active,
+        membership_note=client.membership_note,
+    )
+
+
 @app.get("/coach/status")
 def coach_status(coach_id: UUID = Depends(get_current_coach_id)):
     """Lets the frontend probe whether the caller is a coach at all, to
@@ -540,24 +562,28 @@ def coach_status(coach_id: UUID = Depends(get_current_coach_id)):
 @app.get("/coach/clients", response_model=list[ClientOut])
 def list_clients(db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
     clients = db.query(Profile).order_by(Profile.created_at.asc()).all()
-    out = []
-    for client in clients:
-        resolved = (
-            db.query(FollowThroughLogEntry)
-            .filter(FollowThroughLogEntry.user_id == client.id, FollowThroughLogEntry.status != "pending")
-            .all()
-        )
-        rate = round(sum(1 for f in resolved if f.status == "did") / len(resolved) * 100) if resolved else None
-        out.append(ClientOut(
-            id=client.id,
-            display_name=client.display_name,
-            is_self=(client.id == coach_id),
-            dream_entry_count=db.query(DreamJournalEntry).filter(DreamJournalEntry.user_id == client.id).count(),
-            constitution_count=db.query(GeniusConstitutionResult).filter(GeniusConstitutionResult.user_id == client.id).count(),
-            goal_count=db.query(Goal).filter(Goal.user_id == client.id).count(),
-            follow_through_rate=rate,
-        ))
-    return out
+    return [_client_out(db, client, coach_id) for client in clients]
+
+
+@app.patch("/coach/clients/{client_id}/membership", response_model=ClientOut)
+def update_client_membership(
+    client_id: UUID,
+    payload: ClientMembershipUpdate,
+    db: Session = Depends(get_db),
+    coach_id: UUID = Depends(get_current_coach_id),
+):
+    """Manual membership/billing tracking -- Phase 1: payment happens
+    outside the app for now (Zelle, wire, invoice), and the coach flips
+    this by hand. Same columns a real Stripe webhook will write to
+    automatically later, once that's built, without any schema change.
+    """
+    client = _client_or_404(db, client_id)
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(client, field, value)
+    db.commit()
+    db.refresh(client)
+    return _client_out(db, client, coach_id)
 
 
 @app.get("/coach/clients/{client_id}/dream-entries", response_model=list[DreamJournalEntryOut])

@@ -141,6 +141,16 @@ client-side only (see `frontend/src/features/chat/chatUtils.js`) and was
 never persisted server-side, so there's no chat history in the database
 for a coach view to surface even in principle.
 
+**Membership/billing (manual, Phase 1).** `profiles.membership_plan`,
+`membership_active`, and `membership_note` track who's a paying client
+and on what plan -- set by hand from the coach dashboard's Membership
+panel, since payment currently happens outside the app (Zelle, wire,
+invoice). `PATCH /coach/clients/{id}/membership` is the only way to write
+these. These are the same columns a real Stripe integration will update
+automatically later (subscription created/cancelled webhook -> flip
+`membership_active`), so no schema change is needed when that's built --
+only a new code path that writes to fields that already exist.
+
 `POST /coach/clients/{id}/symbol-validations` is the first real
 implementation of a rule from
 `../protocols/11_Coherence_Dream_Criteria_Tagging_Density.md`: a symbol's
