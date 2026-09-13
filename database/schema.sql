@@ -2,9 +2,12 @@
 -- Target: Supabase Postgres
 --
 -- How to run this: paste the whole file into the Supabase SQL Editor
--- (Project -> SQL Editor -> New query) and click "Run". Safe to re-run
--- top to bottom on a fresh project; it will fail loudly (not silently
--- corrupt data) if a table already exists, which is what you want.
+-- (Project -> SQL Editor -> New query) and click "Run". Genuinely safe to
+-- re-run top to bottom at any time, on a fresh project or one that's years
+-- into drifting out of sync (missing tables, missing columns added since)
+-- -- every statement either creates something only if it's missing, or
+-- replaces something (a policy, function, trigger) with the current
+-- definition, rather than erroring on "already exists."
 
 -- ---------------------------------------------------------------------------
 -- Extensions
@@ -46,16 +49,19 @@ create table if not exists public.profiles (
 -- exists` rather than folding into the create table above so this applies
 -- cleanly to a database that already has `profiles` from before this was
 -- added, not just a fresh install.
+alter table public.profiles add column if not exists is_coach boolean not null default false;
 alter table public.profiles add column if not exists membership_plan text;
 alter table public.profiles add column if not exists membership_active boolean not null default false;
 alter table public.profiles add column if not exists membership_note text;
 
 alter table public.profiles enable row level security;
 
+drop policy if exists "Users can view their own profile" on public.profiles;
 create policy "Users can view their own profile"
     on public.profiles for select
     using (auth.uid() = id);
 
+drop policy if exists "Users can update their own profile" on public.profiles;
 create policy "Users can update their own profile"
     on public.profiles for update
     using (auth.uid() = id);
@@ -97,11 +103,22 @@ create table if not exists public.dream_journal_entries (
     updated_at timestamptz not null default now()
 );
 
+-- Column-level repair for a table that already existed before one of
+-- these was added -- same reasoning as profiles' membership_* columns
+-- above. Harmless no-op when the column's already there.
+alter table public.dream_journal_entries add column if not exists title text;
+alter table public.dream_journal_entries add column if not exists lines jsonb not null default '[]'::jsonb;
+alter table public.dream_journal_entries add column if not exists tags text[] not null default '{}';
+alter table public.dream_journal_entries add column if not exists edin_note text;
+alter table public.dream_journal_entries add column if not exists created_at timestamptz not null default now();
+alter table public.dream_journal_entries add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists dream_journal_entries_user_id_idx
     on public.dream_journal_entries (user_id, created_at desc);
 
 alter table public.dream_journal_entries enable row level security;
 
+drop policy if exists "Users manage their own dream journal entries" on public.dream_journal_entries;
 create policy "Users manage their own dream journal entries"
     on public.dream_journal_entries for all
     using (auth.uid() = user_id)
@@ -132,11 +149,19 @@ create table if not exists public.genius_constitution_results (
     created_at timestamptz not null default now()
 );
 
+alter table public.genius_constitution_results add column if not exists focus_answer text;
+alter table public.genius_constitution_results add column if not exists density_answer text;
+alter table public.genius_constitution_results add column if not exists touch_answer text;
+alter table public.genius_constitution_results add column if not exists intention text;
+alter table public.genius_constitution_results add column if not exists edin_note text;
+alter table public.genius_constitution_results add column if not exists created_at timestamptz not null default now();
+
 create index if not exists genius_constitution_results_user_id_idx
     on public.genius_constitution_results (user_id, created_at desc);
 
 alter table public.genius_constitution_results enable row level security;
 
+drop policy if exists "Users manage their own constitution results" on public.genius_constitution_results;
 create policy "Users manage their own constitution results"
     on public.genius_constitution_results for all
     using (auth.uid() = user_id)
@@ -164,11 +189,16 @@ create table if not exists public.goals (
     updated_at timestamptz not null default now()
 );
 
+alter table public.goals add column if not exists progress numeric(3, 2) not null default 0;
+alter table public.goals add column if not exists created_at timestamptz not null default now();
+alter table public.goals add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists goals_user_id_idx
     on public.goals (user_id, created_at desc);
 
 alter table public.goals enable row level security;
 
+drop policy if exists "Users manage their own goals" on public.goals;
 create policy "Users manage their own goals"
     on public.goals for all
     using (auth.uid() = user_id)
@@ -200,6 +230,14 @@ create table if not exists public.follow_through_log (
     updated_at timestamptz not null default now()
 );
 
+alter table public.follow_through_log add column if not exists goal_id uuid references public.goals (id) on delete set null;
+alter table public.follow_through_log add column if not exists status text not null default 'pending';
+alter table public.follow_through_log add column if not exists note text;
+alter table public.follow_through_log add column if not exists emotional_shift text;
+alter table public.follow_through_log add column if not exists edin_note text;
+alter table public.follow_through_log add column if not exists created_at timestamptz not null default now();
+alter table public.follow_through_log add column if not exists updated_at timestamptz not null default now();
+
 create index if not exists follow_through_log_user_id_idx
     on public.follow_through_log (user_id, created_at desc);
 
@@ -208,6 +246,7 @@ create index if not exists follow_through_log_goal_id_idx
 
 alter table public.follow_through_log enable row level security;
 
+drop policy if exists "Users manage their own follow-through log" on public.follow_through_log;
 create policy "Users manage their own follow-through log"
     on public.follow_through_log for all
     using (auth.uid() = user_id)
@@ -237,6 +276,9 @@ create table if not exists public.calendar_events (
     created_at timestamptz not null default now()
 );
 
+alter table public.calendar_events add column if not exists goal_id uuid references public.goals (id) on delete set null;
+alter table public.calendar_events add column if not exists created_at timestamptz not null default now();
+
 create index if not exists calendar_events_goal_id_idx
     on public.calendar_events (goal_id);
 
@@ -245,6 +287,7 @@ create index if not exists calendar_events_user_id_idx
 
 alter table public.calendar_events enable row level security;
 
+drop policy if exists "Users manage their own calendar events" on public.calendar_events;
 create policy "Users manage their own calendar events"
     on public.calendar_events for all
     using (auth.uid() = user_id)
@@ -270,11 +313,14 @@ create table if not exists public.coach_notes (
     created_at timestamptz not null default now()
 );
 
+alter table public.coach_notes add column if not exists created_at timestamptz not null default now();
+
 create index if not exists coach_notes_client_id_idx
     on public.coach_notes (client_id, created_at desc);
 
 alter table public.coach_notes enable row level security;
 
+drop policy if exists "Coaches manage the notes they wrote" on public.coach_notes;
 create policy "Coaches manage the notes they wrote"
     on public.coach_notes for all
     using (auth.uid() = coach_id)
@@ -302,11 +348,14 @@ create table if not exists public.symbol_validations (
     unique (client_id, tag)
 );
 
+alter table public.symbol_validations add column if not exists validated_at timestamptz not null default now();
+
 create index if not exists symbol_validations_client_id_idx
     on public.symbol_validations (client_id);
 
 alter table public.symbol_validations enable row level security;
 
+drop policy if exists "Coaches manage the validations they made" on public.symbol_validations;
 create policy "Coaches manage the validations they made"
     on public.symbol_validations for all
     using (auth.uid() = validated_by)
@@ -342,6 +391,10 @@ create table if not exists public.flagged_events (
     reviewed boolean not null default false,
     review_notes text
 );
+
+alter table public.flagged_events add column if not exists reviewed boolean not null default false;
+alter table public.flagged_events add column if not exists review_notes text;
+alter table public.flagged_events add column if not exists "timestamp" timestamptz not null default now();
 
 create index if not exists flagged_events_user_id_idx
     on public.flagged_events (user_id, "timestamp" desc);
