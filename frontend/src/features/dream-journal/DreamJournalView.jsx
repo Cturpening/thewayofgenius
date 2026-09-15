@@ -245,6 +245,7 @@ export default function DreamJournalView({ entries, setEntries }) {
         </button>
       </div>
 
+      {!editingId && (
       <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
         <input
           value={title}
@@ -274,18 +275,11 @@ export default function DreamJournalView({ entries, setEntries }) {
             disabled={saving}
             style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
           >
-            {saving ? "Saving..." : editingId ? "Save Changes" : "Save Entry"}
+            {saving ? "Saving..." : "Save Entry"}
           </button>
-          {editingId && (
-            <button
-              onClick={resetComposer}
-              style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12.5, cursor: "pointer" }}
-            >
-              Cancel
-            </button>
-          )}
         </div>
       </div>
+      )}
 
       {allTags.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -309,6 +303,47 @@ export default function DreamJournalView({ entries, setEntries }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {visibleEntries.map((entry) => (
           <div key={entry.id} style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "16px 18px" }}>
+            {editingId === entry.id ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Entry title (optional)"
+                  spellCheck
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none" }}
+                />
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={5}
+                  spellCheck
+                  style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 13, outline: "none", resize: "vertical", lineHeight: 1.5, fontFamily: "inherit" }}
+                />
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  placeholder="Tags, comma separated"
+                  spellCheck
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={saveEntry}
+                    disabled={saving}
+                    style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
+                  >
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                  <button
+                    onClick={resetComposer}
+                    style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12.5, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+            <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
               <div>
                 <div style={{ fontFamily: "Georgia, serif", fontSize: 14.5, color: COLORS.ink }}>{entry.title}</div>
@@ -359,6 +394,8 @@ export default function DreamJournalView({ entries, setEntries }) {
                 {entry.edinNote}
               </div>
             </div>
+            </>
+            )}
           </div>
         ))}
         {visibleEntries.length === 0 && (
