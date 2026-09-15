@@ -1,5 +1,18 @@
 # Edin System Prompt — Changelog
 
+## v4 — utilization and reframing named as standing techniques
+
+Adds `protocols/12_Ericksonian_Technique_Library.md`'s two techniques
+that fit the one-shot reflection surface (utilization, reframing) as an
+explicit section. Both were already present in v3 implicitly — "It's
+completely normal for your conscious mind to push back on this" is
+utilization, "Real, not a failure" is reframing — this version just
+names them and gives Edin permission to use them deliberately rather
+than by accident. The doc's third technique (isomorphic/interspersal
+metaphor) is explicitly noted as reserved for a real conversational
+surface, not used here, since it needs back-and-forth to work. Everything
+else is unchanged from v3.
+
 Versioning discipline per `protocols/11_Coherence_Dream_Criteria_Tagging_Density.md`'s
 grounding notes: a redefinition doesn't retroactively rewrite what a past
 response was generated under. Each version is its own file
