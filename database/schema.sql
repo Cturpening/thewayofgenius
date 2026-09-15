@@ -16,6 +16,44 @@
 create extension if not exists "pgcrypto"; -- gives us gen_random_uuid()
 
 -- ---------------------------------------------------------------------------
+-- Membership plan catalog
+--
+-- Real, editable plan definitions (name, price, billing period,
+-- description) the coach manages once, instead of retyping a free-text
+-- label per client. Defined before `profiles` below since profiles
+-- references it. Phase 1: coach-managed by hand from the dashboard; a
+-- real Stripe integration would sync its own price objects into this
+-- same table rather than replacing it.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.membership_plans (
+    id uuid primary key default gen_random_uuid(),
+    key text not null unique, -- stable slug, e.g. "private_200" -- never shown to clients, just an internal handle
+    name text not null, -- display name, e.g. "Private Coaching"
+    price_cents integer not null check (price_cents >= 0),
+    billing_period text not null check (billing_period in ('monthly', 'annual', 'one_time')),
+    description text,
+    -- Whether this plan is currently offered. Inactive plans are never
+    -- deleted -- a client already on one keeps showing it -- just hidden
+    -- from the "assign a plan" picker for new assignments.
+    active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+alter table public.membership_plans add column if not exists price_cents integer not null default 0;
+alter table public.membership_plans add column if not exists billing_period text not null default 'monthly';
+alter table public.membership_plans add column if not exists description text;
+alter table public.membership_plans add column if not exists active boolean not null default true;
+alter table public.membership_plans add column if not exists created_at timestamptz not null default now();
+alter table public.membership_plans add column if not exists updated_at timestamptz not null default now();
+
+alter table public.membership_plans enable row level security;
+-- No end-user policies -- same reasoning as flagged_events: the coach
+-- dashboard's backend endpoints (app/main.py's get_current_coach_id
+-- routes) are the real access boundary, connecting directly to Postgres.
+
+-- ---------------------------------------------------------------------------
 -- User accounts
 --
 -- Supabase Auth already provides a built-in `auth.users` table that handles
@@ -50,7 +88,12 @@ create table if not exists public.profiles (
 -- cleanly to a database that already has `profiles` from before this was
 -- added, not just a fresh install.
 alter table public.profiles add column if not exists is_coach boolean not null default false;
+-- membership_plan (free text) is superseded by membership_plan_id below,
+-- which points at a real catalog row instead of a retyped label. Left in
+-- place rather than dropped -- harmless if unused, and avoids a
+-- destructive migration on a column that's already live.
 alter table public.profiles add column if not exists membership_plan text;
+alter table public.profiles add column if not exists membership_plan_id uuid references public.membership_plans (id) on delete set null;
 alter table public.profiles add column if not exists membership_active boolean not null default false;
 alter table public.profiles add column if not exists membership_note text;
 

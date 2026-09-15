@@ -228,6 +228,37 @@ class CalendarEventResponse(BaseModel):
 # no separate coach-client assignment table for this private-beta phase.
 # ---------------------------------------------------------------------------
 
+class MembershipPlanOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: UUID
+    key: str
+    name: str
+    price_cents: int
+    billing_period: Literal["monthly", "annual", "one_time"]
+    description: Optional[str] = None
+    active: bool
+    created_at: datetime
+
+
+class MembershipPlanCreate(BaseModel):
+    key: str
+    name: str
+    price_cents: int = Field(ge=0)
+    billing_period: Literal["monthly", "annual", "one_time"]
+    description: Optional[str] = None
+
+
+class MembershipPlanUpdate(BaseModel):
+    # All optional -- exclude_unset in the endpoint means only fields
+    # actually sent get touched, same pattern as every other PATCH here.
+    name: Optional[str] = None
+    price_cents: Optional[int] = Field(default=None, ge=0)
+    billing_period: Optional[Literal["monthly", "annual", "one_time"]] = None
+    description: Optional[str] = None
+    active: Optional[bool] = None
+
+
 class ClientOut(BaseModel):
     id: UUID
     display_name: Optional[str] = None
@@ -238,7 +269,10 @@ class ClientOut(BaseModel):
     # None means nothing has moved past "pending" yet -- distinct from 0%.
     follow_through_rate: Optional[int] = None
     # Membership/billing status -- see database/schema.sql's note on these.
-    membership_plan: Optional[str] = None
+    # membership_plan is the embedded catalog row (None if unassigned),
+    # not the deprecated free-text column of the same name on the model.
+    membership_plan_id: Optional[UUID] = None
+    membership_plan: Optional[MembershipPlanOut] = None
     membership_active: bool
     membership_note: Optional[str] = None
 
@@ -246,8 +280,9 @@ class ClientOut(BaseModel):
 class ClientMembershipUpdate(BaseModel):
     # All optional -- combined with model_dump(exclude_unset=True) in the
     # endpoint, only the fields actually present in the request get
-    # touched, same pattern as every other PATCH in this app.
-    membership_plan: Optional[str] = None
+    # touched, same pattern as every other PATCH in this app. Send
+    # membership_plan_id: null explicitly to unassign a plan.
+    membership_plan_id: Optional[UUID] = None
     membership_active: Optional[bool] = None
     membership_note: Optional[str] = None
 

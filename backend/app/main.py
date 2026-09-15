@@ -25,6 +25,7 @@ from app.models import (
     FollowThroughLogEntry,
     GeniusConstitutionResult,
     Goal,
+    MembershipPlan,
     Profile,
     SymbolValidation,
 )
@@ -54,6 +55,9 @@ from app.schemas import (
     GoalOut,
     GoalResponse,
     GoalUpdate,
+    MembershipPlanCreate,
+    MembershipPlanOut,
+    MembershipPlanUpdate,
     SymbolValidationCreate,
     SymbolValidationOut,
 )
@@ -554,6 +558,7 @@ def _client_out(db: Session, client: Profile, coach_id: UUID) -> ClientOut:
         .all()
     )
     rate = round(sum(1 for f in resolved if f.status == "did") / len(resolved) * 100) if resolved else None
+    plan = db.query(MembershipPlan).filter(MembershipPlan.id == client.membership_plan_id).first() if client.membership_plan_id else None
     return ClientOut(
         id=client.id,
         display_name=client.display_name,
@@ -562,7 +567,8 @@ def _client_out(db: Session, client: Profile, coach_id: UUID) -> ClientOut:
         constitution_count=db.query(GeniusConstitutionResult).filter(GeniusConstitutionResult.user_id == client.id).count(),
         goal_count=db.query(Goal).filter(Goal.user_id == client.id).count(),
         follow_through_rate=rate,
-        membership_plan=client.membership_plan,
+        membership_plan_id=client.membership_plan_id,
+        membership_plan=MembershipPlanOut.model_validate(plan) if plan else None,
         membership_active=client.membership_active,
         membership_note=client.membership_note,
     )
@@ -601,6 +607,48 @@ def update_client_membership(
     db.commit()
     db.refresh(client)
     return _client_out(db, client, coach_id)
+
+
+# ---------------------------------------------------------------------------
+# Membership plan catalog -- real, editable plans instead of a retyped
+# free-text label per client (see database/schema.sql's note on
+# membership_plans). Coach-only, same access boundary as the rest of
+# /coach/*.
+# ---------------------------------------------------------------------------
+
+@app.get("/coach/plans", response_model=list[MembershipPlanOut])
+def list_plans(db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
+    return db.query(MembershipPlan).order_by(MembershipPlan.created_at.asc()).all()
+
+
+@app.post("/coach/plans", response_model=MembershipPlanOut, status_code=201)
+def create_plan(
+    payload: MembershipPlanCreate, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    if db.query(MembershipPlan).filter(MembershipPlan.key == payload.key).first():
+        raise HTTPException(status_code=409, detail=f"A plan with key '{payload.key}' already exists")
+    plan = MembershipPlan(**payload.model_dump())
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return plan
+
+
+@app.patch("/coach/plans/{plan_id}", response_model=MembershipPlanOut)
+def update_plan(
+    plan_id: UUID,
+    payload: MembershipPlanUpdate,
+    db: Session = Depends(get_db),
+    coach_id: UUID = Depends(get_current_coach_id),
+):
+    plan = db.query(MembershipPlan).filter(MembershipPlan.id == plan_id).first()
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(plan, field, value)
+    db.commit()
+    db.refresh(plan)
+    return plan
 
 
 @app.get("/coach/clients/{client_id}/dream-entries", response_model=list[DreamJournalEntryOut])

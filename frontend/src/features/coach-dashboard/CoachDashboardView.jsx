@@ -11,16 +11,28 @@ import {
   validateSymbol,
   unvalidateSymbol,
   updateClientMembership,
+  fetchPlans,
+  createPlan,
+  updatePlan,
 } from "./api";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+const BILLING_PERIOD_LABEL = { monthly: "/mo", annual: "/yr", one_time: " one-time" };
+
+function formatPrice(priceCents, billingPeriod) {
+  return `$${(priceCents / 100).toFixed(2)}${BILLING_PERIOD_LABEL[billingPeriod] || ""}`;
+}
+
 export default function CoachDashboardView() {
+  const [view, setView] = useState("clients"); // clients | plans
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loadError, setLoadError] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [plansError, setPlansError] = useState(null);
 
   useEffect(() => {
     fetchClients()
@@ -29,9 +41,16 @@ export default function CoachDashboardView() {
         if (cs.length > 0) setSelectedId(cs[0].id);
       })
       .catch((err) => { console.error("Failed to load clients:", err); setLoadError(err.message); });
+    fetchPlans()
+      .then(setPlans)
+      .catch((err) => { console.error("Failed to load plans:", err); setPlansError(err.message); });
   }, []);
 
   const selected = clients.find((c) => c.id === selectedId);
+
+  const onClientUpdate = (updated) => setClients((cs) => cs.map((c) => (c.id === updated.id ? updated : c)));
+  const onPlanUpdate = (updated) => setPlans((ps) => ps.map((p) => (p.id === updated.id ? updated : p)));
+  const onPlanCreate = (created) => setPlans((ps) => [...ps, created]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -41,12 +60,32 @@ export default function CoachDashboardView() {
         persisted server-side, so there's genuinely nothing to read there.
       </div>
 
+      <div style={{ display: "flex", gap: 8 }}>
+        {["clients", "plans"].map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            style={{
+              padding: "7px 16px", borderRadius: 8, cursor: "pointer", fontSize: 12.5, textTransform: "capitalize",
+              border: `1px solid ${view === v ? COLORS.violet : COLORS.grid}`,
+              background: view === v ? `${COLORS.violet}18` : "transparent",
+              color: view === v ? COLORS.violet : COLORS.inkDim,
+            }}
+          >
+            {v === "plans" ? "Membership Plans" : v}
+          </button>
+        ))}
+      </div>
+
       {loadError && (
         <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", fontSize: 13, color: COLORS.ink }}>
           Couldn't load clients: {loadError}
         </div>
       )}
 
+      {view === "plans" ? (
+        <PlansManager plans={plans} loadError={plansError} onPlanCreate={onPlanCreate} onPlanUpdate={onPlanUpdate} />
+      ) : (
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ width: 220, flexShrink: 0, background: COLORS.bgPanel, borderRadius: 14, padding: "12px", display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, padding: "0 6px", marginBottom: 4 }}>CLIENTS</div>
@@ -76,7 +115,7 @@ export default function CoachDashboardView() {
                   color: c.membershipActive ? COLORS.gold : COLORS.inkDim,
                   border: `1px solid ${c.membershipActive ? COLORS.gold : COLORS.grid}`,
                 }}>
-                  {c.membershipActive ? (c.membershipPlan || "active") : "no active plan"}
+                  {c.membershipActive ? (c.membershipPlan?.name || "active") : "no active plan"}
                 </span>
               </div>
             </button>
@@ -88,30 +127,139 @@ export default function CoachDashboardView() {
             <ClientDetail
               key={selected.id}
               client={selected}
-              onClientUpdate={(updated) => setClients((cs) => cs.map((c) => (c.id === updated.id ? updated : c)))}
+              plans={plans}
+              onClientUpdate={onClientUpdate}
             />
           ) : (
             <div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Select a client.</div>
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
 
-function MembershipPanel({ client, onClientUpdate }) {
-  const [plan, setPlan] = useState(client.membershipPlan || "");
+function PlansManager({ plans, loadError, onPlanCreate, onPlanUpdate }) {
+  const [showForm, setShowForm] = useState(false);
+  const [key, setKey] = useState("");
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState("monthly");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const resetForm = () => {
+    setKey(""); setName(""); setPrice(""); setBillingPeriod("monthly"); setDescription(""); setShowForm(false);
+  };
+
+  const submit = () => {
+    const priceCents = Math.round(parseFloat(price || "0") * 100);
+    if (!key.trim() || !name.trim() || Number.isNaN(priceCents)) return;
+    setSaving(true);
+    setError(null);
+    createPlan({ key: key.trim(), name: name.trim(), priceCents, billingPeriod, description: description.trim() })
+      .then((created) => { onPlanCreate(created); resetForm(); })
+      .catch((err) => { console.error("Failed to create plan:", err); setError(err.message); })
+      .finally(() => setSaving(false));
+  };
+
+  const toggleActive = (plan) => {
+    updatePlan(plan.id, { active: !plan.active }).then(onPlanUpdate).catch((err) => console.error("Failed to update plan:", err));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ fontSize: 11.5, color: COLORS.inkDim, lineHeight: 1.5 }}>
+        Define each plan once here — name, price, billing period — instead of retyping it on every client.
+        Deactivating a plan hides it from new assignments but never touches clients already on it.
+      </div>
+
+      {loadError && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "12px 14px", fontSize: 12.5, color: COLORS.ink }}>
+          Couldn't load plans: {loadError}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {plans.length === 0 && !loadError && (
+          <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>No plans yet — add your first one below.</div>
+        )}
+        {plans.map((p) => (
+          <div key={p.id} style={{ background: COLORS.bgPanel, borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, opacity: p.active ? 1 : 0.55 }}>
+            <div>
+              <div style={{ fontSize: 13, color: COLORS.ink }}>{p.name} <span style={{ color: COLORS.inkDim, fontSize: 11 }}>({p.key})</span></div>
+              <div style={{ fontSize: 11.5, color: COLORS.gold, marginTop: 2 }}>{formatPrice(p.priceCents, p.billingPeriod)}</div>
+              {p.description && <div style={{ fontSize: 11, color: COLORS.inkDim, marginTop: 4 }}>{p.description}</div>}
+            </div>
+            <button
+              onClick={() => toggleActive(p)}
+              style={{ fontSize: 10.5, padding: "5px 12px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, cursor: "pointer", flexShrink: 0 }}
+            >
+              {p.active ? "Deactivate" : "Activate"}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {showForm ? (
+        <div style={{ background: COLORS.bgPanel, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="key (e.g. private_200)" style={{ flex: 1, minWidth: 140, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }} />
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name (e.g. Private Coaching)" style={{ flex: 2, minWidth: 180, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Price in dollars (e.g. 200)" type="number" min="0" step="0.01" style={{ flex: 1, minWidth: 140, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }} />
+            <select value={billingPeriod} onChange={(e) => setBillingPeriod(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}>
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+              <option value="one_time">One-time</option>
+            </select>
+          </div>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's included (optional)" rows={2} spellCheck style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+          {error && <div style={{ fontSize: 11.5, color: COLORS.coral }}>Couldn't save -- {error}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={submit} disabled={saving} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 12.5, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving..." : "Create Plan"}
+            </button>
+            <button onClick={resetForm} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12.5, cursor: "pointer" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          style={{ alignSelf: "flex-start", padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.gold}`, background: `${COLORS.gold}18`, color: COLORS.gold, fontSize: 12.5, cursor: "pointer" }}
+        >
+          + New Plan
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MembershipPanel({ client, plans, onClientUpdate }) {
+  const [planId, setPlanId] = useState(client.membershipPlanId || "");
   const [active, setActive] = useState(client.membershipActive);
   const [note, setNote] = useState(client.membershipNote || "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
-  const dirty = plan !== (client.membershipPlan || "") || active !== client.membershipActive || note !== (client.membershipNote || "");
+  const dirty = planId !== (client.membershipPlanId || "") || active !== client.membershipActive || note !== (client.membershipNote || "");
+
+  // The client's currently-assigned plan should stay selectable even if
+  // it's since been deactivated -- otherwise it'd vanish from the
+  // dropdown for a client already on it.
+  const options = client.membershipPlan && !plans.some((p) => p.id === client.membershipPlan.id)
+    ? [...plans, client.membershipPlan]
+    : plans;
 
   const save = () => {
     setSaving(true);
     setSaveError(null);
-    updateClientMembership(client.id, { plan: plan.trim() || null, active, note: note.trim() || null })
+    updateClientMembership(client.id, { planId: planId || null, active, note: note.trim() || null })
       .then(onClientUpdate)
       .catch((err) => { console.error("Failed to update membership:", err); setSaveError(err.message); })
       .finally(() => setSaving(false));
@@ -126,12 +274,18 @@ function MembershipPanel({ client, onClientUpdate }) {
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <input
-            value={plan}
-            onChange={(e) => setPlan(e.target.value)}
-            placeholder="Plan (e.g. private_200, cohort_fall2026)"
+          <select
+            value={planId}
+            onChange={(e) => setPlanId(e.target.value)}
             style={{ flex: 1, minWidth: 200, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
-          />
+          >
+            <option value="">No plan assigned</option>
+            {options.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {formatPrice(p.priceCents, p.billingPeriod)}{!p.active ? " (inactive)" : ""}
+              </option>
+            ))}
+          </select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: COLORS.ink, cursor: "pointer" }}>
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Active
@@ -162,7 +316,7 @@ function MembershipPanel({ client, onClientUpdate }) {
   );
 }
 
-function ClientDetail({ client, onClientUpdate }) {
+function ClientDetail({ client, plans, onClientUpdate }) {
   const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionResults, setConstitutionResults] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -196,7 +350,7 @@ function ClientDetail({ client, onClientUpdate }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <MembershipPanel client={client} onClientUpdate={onClientUpdate} />
+      <MembershipPanel client={client} plans={plans} onClientUpdate={onClientUpdate} />
 
       <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px" }}>
         <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 10 }}>

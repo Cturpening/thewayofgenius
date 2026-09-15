@@ -15,6 +15,21 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 
+class MembershipPlan(Base):
+    __tablename__ = "membership_plans"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(Text, nullable=False, unique=True)
+    name = Column(Text, nullable=False)
+    price_cents = Column(Integer, nullable=False, default=0)
+    billing_period = Column(Text, nullable=False, default="monthly")
+    description = Column(Text, nullable=True)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
 class Profile(Base):
     __tablename__ = "profiles"
     __table_args__ = {"schema": "public"}
@@ -23,9 +38,11 @@ class Profile(Base):
     display_name = Column(Text, nullable=True)
     is_coach = Column(Boolean, nullable=False, default=False)
     # Membership/billing status -- see database/schema.sql's note on these
-    # three columns. Set by hand by the coach until real Stripe webhooks
-    # write to them instead.
+    # columns. Set by hand by the coach until real Stripe webhooks write
+    # to them instead. membership_plan (free text) is superseded by
+    # membership_plan_id, a real reference into membership_plans.
     membership_plan = Column(Text, nullable=True)
+    membership_plan_id = Column(UUID(as_uuid=True), nullable=True)
     membership_active = Column(Boolean, nullable=False, default=False)
     membership_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)

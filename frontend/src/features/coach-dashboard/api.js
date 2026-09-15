@@ -17,6 +17,18 @@ export async function checkIsCoach() {
   }
 }
 
+function fromApiPlan(p) {
+  return {
+    id: p.id,
+    key: p.key,
+    name: p.name,
+    priceCents: p.price_cents,
+    billingPeriod: p.billing_period,
+    description: p.description,
+    active: p.active,
+  };
+}
+
 function fromApiClient(c) {
   return {
     id: c.id,
@@ -26,7 +38,8 @@ function fromApiClient(c) {
     constitutionCount: c.constitution_count,
     goalCount: c.goal_count,
     followThroughRate: c.follow_through_rate,
-    membershipPlan: c.membership_plan,
+    membershipPlanId: c.membership_plan_id,
+    membershipPlan: c.membership_plan ? fromApiPlan(c.membership_plan) : null,
     membershipActive: c.membership_active,
     membershipNote: c.membership_note,
   };
@@ -40,9 +53,10 @@ export async function fetchClients() {
 // Manual Phase 1 billing tracking -- payment happens outside the app
 // (Zelle, wire, invoice) and this just records what you already know.
 // Same fields a real Stripe webhook will update automatically later.
-export async function updateClientMembership(clientId, { plan, active, note }) {
+// Pass planId: null to unassign a client's plan.
+export async function updateClientMembership(clientId, { planId, active, note }) {
   const body = {};
-  if (plan !== undefined) body.membership_plan = plan;
+  if (planId !== undefined) body.membership_plan_id = planId;
   if (active !== undefined) body.membership_active = active;
   if (note !== undefined) body.membership_note = note;
 
@@ -51,6 +65,37 @@ export async function updateClientMembership(clientId, { plan, active, note }) {
     body: JSON.stringify(body),
   });
   return fromApiClient(updated);
+}
+
+// Real, editable plan catalog -- define a plan once (name, price, billing
+// period), assign it to clients from the Membership panel instead of
+// retyping a label each time. See database/schema.sql's membership_plans.
+export async function fetchPlans() {
+  const plans = await apiRequest(`/coach/plans`, { method: "GET" });
+  return plans.map(fromApiPlan);
+}
+
+export async function createPlan({ key, name, priceCents, billingPeriod, description }) {
+  const created = await apiRequest(`/coach/plans`, {
+    method: "POST",
+    body: JSON.stringify({ key, name, price_cents: priceCents, billing_period: billingPeriod, description: description || null }),
+  });
+  return fromApiPlan(created);
+}
+
+export async function updatePlan(planId, { name, priceCents, billingPeriod, description, active }) {
+  const body = {};
+  if (name !== undefined) body.name = name;
+  if (priceCents !== undefined) body.price_cents = priceCents;
+  if (billingPeriod !== undefined) body.billing_period = billingPeriod;
+  if (description !== undefined) body.description = description;
+  if (active !== undefined) body.active = active;
+
+  const updated = await apiRequest(`/coach/plans/${planId}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  return fromApiPlan(updated);
 }
 
 function fromApiDreamEntry(e) {
