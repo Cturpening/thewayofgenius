@@ -103,6 +103,19 @@ actually worth translating... is its own skill."
 thing "coherence" is being measured against — not "is this dream
 interesting" but "is this dream organizing something, or is it noise."
 
+**Refinement from Chelsey's review pass, softening "noise" above:**
+"this is a bit too strict, I wouldn't be loaded with this. It's not just
+noise but it's in the ecosystem and has its own filler needs and
+details — the subconscious uses everything. So in a way this is the
+language of arts, grammar, and diagramming in a weird way." Nothing that
+surfaces is actually meaningless; even what doesn't rise to
+coherence-dream status is still doing real work in the ecosystem. Better
+analogy than signal-vs-garbage: grammar. Most words in a sentence aren't
+the content word, but they're still load-bearing structure. So the real
+question isn't "is this noise" so much as "is this the content or the
+connective tissue" — both matter, they're just not weighted the same for
+coherence-dream purposes specifically.
+
 **Two real worked examples, straight from Chelsey's own dream journal**
 (`chelseys-dream-journal.md` / `dream-journal.html`) — genuinely useful
 as training examples for what a coherence dream looks like versus an
