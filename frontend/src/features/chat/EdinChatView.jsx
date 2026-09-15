@@ -27,8 +27,16 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
   // reachable without cluttering the active conversation.
   const [sessionMarkerIndex, setSessionMarkerIndex] = useState(null);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  // Edin's reply is already fully generated and safety-checked (see
+  // app/language_safety.py) by the time it reaches the frontend -- this
+  // just reveals that finished, already-safe text word by word instead of
+  // dumping it in all at once, so it reads like she's actually typing.
+  // Never reveals a partial/unchecked reply -- there isn't one.
+  const [revealingId, setRevealingId] = useState(null);
+  const [revealedWordCount, setRevealedWordCount] = useState(0);
   const endRef = useRef(null);
   const prevCountRef = useRef(0);
+  const revealTimerRef = useRef(null);
 
   useEffect(() => {
     fetchChatMessages()
@@ -37,7 +45,25 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => () => clearInterval(revealTimerRef.current), []);
+
+  const revealMessage = (message) => {
+    clearInterval(revealTimerRef.current);
+    const wordCount = message.text.split(" ").length;
+    setRevealingId(message.id);
+    setRevealedWordCount(0);
+    let count = 0;
+    revealTimerRef.current = setInterval(() => {
+      count += 1;
+      setRevealedWordCount(count);
+      if (count >= wordCount) {
+        clearInterval(revealTimerRef.current);
+        setRevealingId(null);
+      }
+    }, 45);
+  };
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, revealedWordCount]);
 
   useEffect(() => {
     if (voiceMode && messages.length > prevCountRef.current) {
@@ -62,7 +88,9 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
     // /chat-messages and protocols/03_Crisis_Escalation_Protocol.md.
     try {
       const { userMessage, edinMessage, crisisResponse } = await sendChatMessage(text);
-      setMessages((msgs) => [...msgs, userMessage, { ...edinMessage, crisis: !!crisisResponse }]);
+      const fullEdinMessage = { ...edinMessage, crisis: !!crisisResponse };
+      setMessages((msgs) => [...msgs, userMessage, fullEdinMessage]);
+      revealMessage(fullEdinMessage);
     } catch (err) {
       console.error("Failed to send chat message:", err);
       setSendError("Couldn't send that -- " + err.message);
@@ -191,7 +219,11 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
             ↑ Show earlier conversation ({hiddenEarlierCount} messages)
           </button>
         )}
-        {visibleMessages.map((m, i) => (
+        {visibleMessages.map((m, i) => {
+          const displayText = m.id === revealingId
+            ? m.text.split(" ").slice(0, revealedWordCount).join(" ")
+            : m.text;
+          return (
           <div key={m.id || i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: m.from === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
               {m.from === "edin" && (
@@ -207,7 +239,7 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
                 color: m.from === "user" ? "#FDFEFC" : COLORS.ink,
                 fontSize: 13, lineHeight: 1.5,
               }}>
-                {m.text}
+                {displayText}
               </div>
               {m.from === "edin" && <SpeakButton text={m.text} small />}
             </div>
@@ -229,7 +261,8 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {sending && (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
             <img src={EDIN_ICON} alt="Edin" style={{
