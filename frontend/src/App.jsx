@@ -249,7 +249,13 @@ export default function App() {
         </div>
 
         {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
-        {view === "dojo" && <PracticeDojoView constitutionAnswers={constitutionAnswers} setConstitutionAnswers={setConstitutionAnswers} />}
+        {view === "dojo" && (
+          <PracticeDojoView
+            constitutionAnswers={constitutionAnswers}
+            setConstitutionAnswers={setConstitutionAnswers}
+            setView={setView}
+          />
+        )}
         {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} />}
         {view === "genetics" && <GeneticsSubconsciousView />}
         {view === "library" && <SymbolicLibraryView />}

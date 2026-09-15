@@ -2,11 +2,13 @@ import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import LessonsLibraryView from "../library/LessonsLibraryView";
 import GeniusConstitutionView from "../genius-constitution/GeniusConstitutionView";
+import EdinCheckIn from "./EdinCheckIn";
 
-export default function PracticeDojoView({ constitutionAnswers, setConstitutionAnswers }) {
+export default function PracticeDojoView({ constitutionAnswers, setConstitutionAnswers, setView }) {
   const [lens, setLens] = useState("constitution");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <EdinCheckIn setView={setView} setLens={setLens} />
       <div style={{ display: "flex", gap: 8 }}>
         {["constitution", "lessons"].map((l) => (
           <button

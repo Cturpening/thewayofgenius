@@ -343,3 +343,30 @@ class ChatMessageSendResponse(BaseModel):
     # separately too so the frontend can style it distinctly, same
     # contract as every other crisis_response in this app.
     crisis_response: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Edin's check-in (Practice Dojo)
+#
+# Deterministic, not AI-generated -- real recency across the four areas
+# that actually have timestamped, persisted data. Biofeedback Lab and
+# Microbiome aren't included: neither one is backed by a real table yet
+# (see frontend/src/features/planned), so there's no honest "last visited"
+# to report for them.
+# ---------------------------------------------------------------------------
+
+class CheckInSuggestion(BaseModel):
+    area: Literal["dream_journal", "goals", "follow_through", "constitution"]
+    label: str
+    last_at: Optional[datetime] = None
+    days_since: Optional[int] = None
+    is_stale: bool
+    # How many days of inactivity this area's own natural rhythm tolerates
+    # before it counts as stale -- sent so the frontend can rank multiple
+    # stale areas by how overdue each is relative to its own cadence,
+    # without needing its own copy of this app's threshold config.
+    stale_after_days: int
+
+
+class CheckInResponse(BaseModel):
+    suggestions: List[CheckInSuggestion]

@@ -39,6 +39,8 @@ from app.schemas import (
     ChatMessageCreate,
     ChatMessageOut,
     ChatMessageSendResponse,
+    CheckInResponse,
+    CheckInSuggestion,
     ClientMembershipUpdate,
     ClientOut,
     CoachNoteCreate,
@@ -649,6 +651,79 @@ def send_chat_message(
         edin_message=ChatMessageOut.model_validate(edin_message),
         crisis_response=None,
     )
+
+
+# ---------------------------------------------------------------------------
+# Edin's check-in (Practice Dojo)
+# ---------------------------------------------------------------------------
+
+# How long since real activity in each area before Edin calls it stale
+# enough to nudge about. Different areas have different natural rhythms --
+# dream journaling is meant to be near-daily, the Constitution is meant to
+# be revisited occasionally, not daily.
+_CHECKIN_STALE_AFTER_DAYS = {
+    "dream_journal": 2,
+    "follow_through": 4,
+    "goals": 7,
+    "constitution": 14,
+}
+
+
+@app.get("/edin/checkin", response_model=CheckInResponse)
+def edin_checkin(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    """Real recency across the areas that actually have persisted,
+    timestamped data -- deterministic, not an AI call, so this is free to
+    show on every visit to the Practice Dojo with no quota cost and no
+    wait. Biofeedback Lab and Microbiome aren't included here: neither is
+    backed by a real table yet (see frontend/src/features/planned), so
+    there's no honest "last visited" to report for them.
+    """
+    now = datetime.now(timezone.utc)
+
+    latest_dream = (
+        db.query(DreamJournalEntry).filter(DreamJournalEntry.user_id == user_id).order_by(DreamJournalEntry.created_at.desc()).first()
+    )
+    latest_follow_through = (
+        db.query(FollowThroughLogEntry)
+        .filter(FollowThroughLogEntry.user_id == user_id)
+        .order_by(FollowThroughLogEntry.created_at.desc())
+        .first()
+    )
+    # Goal.updated_at now actually bumps on edit (see app/models.py), so
+    # ordering by it catches both a brand-new goal and a recent progress
+    # update to an existing one -- whichever happened more recently.
+    latest_goal = db.query(Goal).filter(Goal.user_id == user_id).order_by(Goal.updated_at.desc()).first()
+    latest_constitution = (
+        db.query(GeniusConstitutionResult)
+        .filter(GeniusConstitutionResult.user_id == user_id)
+        .order_by(GeniusConstitutionResult.created_at.desc())
+        .first()
+    )
+
+    areas = [
+        ("dream_journal", "Dream Journal", latest_dream.created_at if latest_dream else None),
+        ("follow_through", "Follow-Through Log", latest_follow_through.created_at if latest_follow_through else None),
+        ("goals", "Goals & Calendar", latest_goal.updated_at if latest_goal else None),
+        ("constitution", "Genius Constitution", latest_constitution.created_at if latest_constitution else None),
+    ]
+
+    suggestions = []
+    for area, label, last_at in areas:
+        stale_after_days = _CHECKIN_STALE_AFTER_DAYS[area]
+        days_since = (now - last_at).days if last_at else None
+        is_stale = days_since is None or days_since > stale_after_days
+        suggestions.append(
+            CheckInSuggestion(
+                area=area,
+                label=label,
+                last_at=last_at,
+                days_since=days_since,
+                is_stale=is_stale,
+                stale_after_days=stale_after_days,
+            )
+        )
+
+    return CheckInResponse(suggestions=suggestions)
 
 
 # ---------------------------------------------------------------------------
