@@ -106,6 +106,15 @@ def _verify_goal_ownership(db: Session, user_id: UUID, goal_id: UUID) -> None:
         raise HTTPException(status_code=404, detail="Goal not found")
 
 
+def _display_name(db: Session, user_id: UUID) -> str | None:
+    """The user's own display_name (Profile), if they've set one -- passed
+    into every generate_* reflection call below so Edin actually knows who
+    she's talking to, on every surface, not just the coach dashboard's
+    client list (the only place this column was read before)."""
+    profile = db.query(Profile).filter(Profile.id == user_id).first()
+    return profile.display_name if profile else None
+
+
 def _confirmed_tags(db: Session, client_id: UUID, tags: list[str]) -> list[str]:
     """Which of `tags` a coach has validated for this user -- see
     app/models.py's SymbolValidation and the /coach/clients/{id}/
@@ -204,7 +213,11 @@ def create_journal_entry(
         try:
             confirmed = _confirmed_tags(db, user_id, payload.tags)
             edin_note = generate_dream_reflection(
-                combined_text, payload.tags, confirmed_tags=confirmed, logged_at=datetime.now(timezone.utc)
+                combined_text,
+                payload.tags,
+                confirmed_tags=confirmed,
+                logged_at=datetime.now(timezone.utc),
+                user_name=_display_name(db, user_id),
             )
         except EdinAIError as exc:
             logger.warning("AI reflection failed: %s", exc)
@@ -335,7 +348,9 @@ def update_constitution_result(
         updates["edin_note"] = None
     elif updates.get("intention") and edin_ai_configured():
         try:
-            updates["edin_note"] = generate_constitution_reflection(result.dominant_orientation, updates["intention"])
+            updates["edin_note"] = generate_constitution_reflection(
+                result.dominant_orientation, updates["intention"], user_name=_display_name(db, user_id)
+            )
         except EdinAIError as exc:
             logger.warning("AI reflection failed: %s", exc)
             updates["edin_note"] = "Edin's reflection isn't available right now — try saving this intention again in a bit."
@@ -415,7 +430,10 @@ def update_follow_through(
     elif new_status and new_status != "pending" and edin_ai_configured():
         try:
             updates["edin_note"] = generate_follow_through_reflection(
-                updates.get("intention", entry.intention), entry.source, new_status
+                updates.get("intention", entry.intention),
+                entry.source,
+                new_status,
+                user_name=_display_name(db, user_id),
             )
         except EdinAIError as exc:
             logger.warning("AI reflection failed: %s", exc)
@@ -610,7 +628,11 @@ def send_chat_message(
         )
         history.reverse()
         try:
-            reply_text = generate_chat_reply([{"role": m.role, "content": m.content} for m in history], context)
+            reply_text = generate_chat_reply(
+                [{"role": m.role, "content": m.content} for m in history],
+                context,
+                user_name=_display_name(db, user_id),
+            )
         except EdinAIError as exc:
             logger.warning("AI reflection failed: %s", exc)
             reply_text = "Edin's reflection isn't available right now — try sending that again in a bit."

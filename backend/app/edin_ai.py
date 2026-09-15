@@ -108,8 +108,21 @@ def generate_reflection(user_content: str) -> str:
     return _FALLBACK_NOTE
 
 
+def _name_line(user_name: str | None) -> str:
+    """Shared prefix for every generate_* wrapper below -- Edin previously
+    had no way to know who she was talking to at all, on any surface,
+    since none of these call sites were ever given the user's own
+    display_name (see app/models.py's Profile). Empty string when the
+    user hasn't set one (display_name is optional), so nothing is invented."""
+    return f"The user's name is {user_name}.\n\n" if user_name else ""
+
+
 def generate_dream_reflection(
-    entry_text: str, tags: list[str], confirmed_tags: list[str] | None = None, logged_at: datetime | None = None
+    entry_text: str,
+    tags: list[str],
+    confirmed_tags: list[str] | None = None,
+    logged_at: datetime | None = None,
+    user_name: str | None = None,
 ) -> str:
     """Edin's reflective note on a dream journal entry.
 
@@ -136,33 +149,37 @@ def generate_dream_reflection(
             tag_lines.append(f"{tag} ({status})")
     logged_line = f"Logged: {logged_at.strftime('%A %I:%M %p UTC')}\n\n" if logged_at else ""
     return generate_reflection(
-        f"{logged_line}Dream journal entry:\n{entry_text}\n\n"
+        f"{_name_line(user_name)}{logged_line}Dream journal entry:\n{entry_text}\n\n"
         f"Tags on this entry: {', '.join(tag_lines) if tag_lines else '(none)'}\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )
 
 
-def generate_follow_through_reflection(intention: str, source: str, status: str) -> str:
+def generate_follow_through_reflection(
+    intention: str, source: str, status: str, user_name: str | None = None
+) -> str:
     """Edin's reflective note on a follow-through log entry -- did the
     user act on an intention, and what actually happened."""
     return generate_reflection(
-        f"Follow-through log entry. Source: {source}. Intention: {intention}. "
+        f"{_name_line(user_name)}Follow-through log entry. Source: {source}. Intention: {intention}. "
         f"Status: {status}.\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )
 
 
-def generate_constitution_reflection(dominant_orientation: str, intention: str) -> str:
+def generate_constitution_reflection(
+    dominant_orientation: str, intention: str, user_name: str | None = None
+) -> str:
     """Edin's reflective note on the intention a user set after completing
     (or revisiting) their Genius Constitution."""
     return generate_reflection(
-        f"Genius Constitution result. Dominant orientation: {dominant_orientation}. "
+        f"{_name_line(user_name)}Genius Constitution result. Dominant orientation: {dominant_orientation}. "
         f"The user's stated intention for where this goes next: {intention}\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )
 
 
-def generate_chat_reply(history: list[dict], context_summary: str) -> str:
+def generate_chat_reply(history: list[dict], context_summary: str, user_name: str | None = None) -> str:
     """Edin's next reply in the real, persisted live chat -- the one
     surface where actual back-and-forth conversation happens, so the
     third technique from protocols/12_Ericksonian_Technique_Library.md
@@ -179,7 +196,7 @@ def generate_chat_reply(history: list[dict], context_summary: str) -> str:
     """
     transcript = "\n".join(f"{'User' if m['role'] == 'user' else 'Edin'}: {m['content']}" for m in history)
     return generate_reflection(
-        f"Real context about this account right now: {context_summary}\n\n"
+        f"{_name_line(user_name)}Real context about this account right now: {context_summary}\n\n"
         f"Conversation so far:\n{transcript}\n\n"
         "Write Edin's next reply in this conversation, per your instructions. "
         "This is real back-and-forth dialogue, not a one-shot reflection."
