@@ -19,6 +19,7 @@ anywhere near.
 """
 
 import logging
+from datetime import datetime
 
 from app.ai_providers import claude, gemini
 from app.ai_providers.base import ProviderError
@@ -107,7 +108,9 @@ def generate_reflection(user_content: str) -> str:
     return _FALLBACK_NOTE
 
 
-def generate_dream_reflection(entry_text: str, tags: list[str], confirmed_tags: list[str] | None = None) -> str:
+def generate_dream_reflection(
+    entry_text: str, tags: list[str], confirmed_tags: list[str] | None = None, logged_at: datetime | None = None
+) -> str:
     """Edin's reflective note on a dream journal entry.
 
     `confirmed_tags` -- the subset of `tags` a coach has validated (see
@@ -117,6 +120,13 @@ def generate_dream_reflection(entry_text: str, tags: list[str], confirmed_tags: 
     tentative, per that rule and the "Tags, symbols, parts, and archetypes"
     section of the system prompt. Only the coach-validation confirmation
     path is wired in yet, not self-ID or 5+ recurrence.
+
+    `logged_at` -- when the entry was actually saved (UTC; the backend has
+    no way to know the user's local time without the frontend sending its
+    offset, which isn't wired up yet, so this is intentionally UTC, not a
+    claim about local time of day). Real context for Edin regardless --
+    day of week and roughly how long after waking an entry landed is
+    genuine information, not decoration.
     """
     confirmed_tags = confirmed_tags or []
     tag_lines = []
@@ -124,8 +134,9 @@ def generate_dream_reflection(entry_text: str, tags: list[str], confirmed_tags: 
         for tag in tags:
             status = "confirmed by a coach" if tag in confirmed_tags else "not yet confirmed"
             tag_lines.append(f"{tag} ({status})")
+    logged_line = f"Logged: {logged_at.strftime('%A %I:%M %p UTC')}\n\n" if logged_at else ""
     return generate_reflection(
-        f"Dream journal entry:\n{entry_text}\n\n"
+        f"{logged_line}Dream journal entry:\n{entry_text}\n\n"
         f"Tags on this entry: {', '.join(tag_lines) if tag_lines else '(none)'}\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )

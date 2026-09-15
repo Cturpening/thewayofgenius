@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -199,7 +200,9 @@ def create_journal_entry(
     elif edin_ai_configured():
         try:
             confirmed = _confirmed_tags(db, user_id, payload.tags)
-            edin_note = generate_dream_reflection(combined_text, payload.tags, confirmed_tags=confirmed)
+            edin_note = generate_dream_reflection(
+                combined_text, payload.tags, confirmed_tags=confirmed, logged_at=datetime.now(timezone.utc)
+            )
         except EdinAIError as exc:
             logger.warning("AI reflection failed: %s", exc)
             # Don't silently keep whatever canned placeholder the frontend

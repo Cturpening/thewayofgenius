@@ -7,7 +7,12 @@
 import { apiRequest } from "../../lib/apiClient";
 
 function formatEntryDate(isoString) {
-  return new Date(isoString).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  // Includes the time, not just the date -- created_at already stores it
+  // exactly, this was just never surfaced. Useful for Edin's own context
+  // too (a 2am entry vs. a 7am one is real information).
+  return new Date(isoString).toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
 }
 
 function fromApiEntry(apiEntry) {
