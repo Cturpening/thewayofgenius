@@ -14,4 +14,9 @@ export const DREAM_AUTO_TAGS = [
   { keyword: "jolt", tag: "waking-activation" },
   { keyword: "clicked", tag: "integration-milestone" },
   { keyword: "realized", tag: "integration-milestone" },
+  // biofeedback-signal -- named in protocols/11's trigger-phrase taxonomy
+  // but missing from this file entirely until now.
+  { keyword: "checking", tag: "biofeedback-signal" },
+  { keyword: "monitoring", tag: "biofeedback-signal" },
+  { keyword: "treating", tag: "biofeedback-signal" },
 ];
