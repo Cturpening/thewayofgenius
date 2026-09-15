@@ -4,21 +4,26 @@ import { EDIN_ICON } from "../../assets/edinIcon";
 import { speakText, stopSpeaking } from "../../lib/speech";
 import SpeakButton from "../../components/common/SpeakButton";
 import { CONSTITUTION_SCENARIOS } from "../genius-constitution/data/constitutionData";
-import { edinAutoReply } from "./chatUtils";
-import { scanChatMessage } from "./api";
+import { fetchChatMessages, sendChatMessage } from "./api";
 
 export default function EdinChatView({ dreamEntries = [] }) {
-  const [messages, setMessages] = useState([
-    { from: "edin", text: "Morning. How'd you sleep?" },
-    { from: "user", text: "rough, that door dream again" },
-    { from: "edin", text: "That's the third time this month — logged in your Biofeedback Lab thread as apprehension and curiosity, alchemized into \"a threshold waiting for readiness.\" Your real EEG read from that same night was delta-dominant, which usually means the deep-sleep part of the night was solid even if the dream itself felt unsettled. Want to open the Symbol Body Map and look at it together, or just sit with it for now?" },
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(null);
   const [voiceMode, setVoiceMode] = useState(false);
   const [activeScenario, setActiveScenario] = useState(null);
   const endRef = useRef(null);
-  const prevCountRef = useRef(messages.length);
+  const prevCountRef = useRef(0);
+
+  useEffect(() => {
+    fetchChatMessages()
+      .then((msgs) => { setMessages(msgs); prevCountRef.current = msgs.length; })
+      .catch((err) => { console.error("Failed to load chat history:", err); setLoadError(err.message); })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -35,31 +40,24 @@ export default function EdinChatView({ dreamEntries = [] }) {
   const send = async () => {
     const text = input.trim();
     if (!text || sending) return;
-    const userMsg = { from: "user", text: input };
-    setMessages((msgs) => [...msgs, userMsg]);
     setInput("");
     setSending(true);
+    setSendError(null);
 
-    // Every message goes through Track B before the (illustrative,
-    // client-side) reply is shown -- this is a real crisis-detection
-    // checkpoint, not just the dream journal's. See app/main.py's
-    // /chat-messages/scan and protocols/03_Crisis_Escalation_Protocol.md.
-    // A scan failure (e.g. logged out, backend down) falls back to the
-    // canned reply rather than blocking the conversation -- but never
-    // silently swallows an actual crisis response when the scan succeeds.
-    let crisisResponse = null;
+    // Real, persisted conversation -- backend runs Track B, then a real
+    // Gemini call with actual account context, per app/edin_prompt's v5
+    // "Live chat conversation" context type. See backend/app/main.py's
+    // /chat-messages and protocols/03_Crisis_Escalation_Protocol.md.
     try {
-      crisisResponse = await scanChatMessage(text);
+      const { userMessage, edinMessage, crisisResponse } = await sendChatMessage(text);
+      setMessages((msgs) => [...msgs, userMessage, { ...edinMessage, crisis: !!crisisResponse }]);
     } catch (err) {
-      console.error("Crisis scan failed, falling back to canned reply:", err);
+      console.error("Failed to send chat message:", err);
+      setSendError("Couldn't send that -- " + err.message);
+      setInput(text);
+    } finally {
+      setSending(false);
     }
-
-    if (crisisResponse) {
-      setMessages((msgs) => [...msgs, { from: "edin", text: crisisResponse, crisis: true }]);
-    } else {
-      setMessages((msgs) => [...msgs, { from: "edin", text: edinAutoReply(text) }]);
-    }
-    setSending(false);
   };
 
   const startConstitutionCheckIn = () => {
@@ -118,9 +116,19 @@ export default function EdinChatView({ dreamEntries = [] }) {
         companion — for anyone who's blind, low-vision, or who just prefers to listen.
       </div>
 
+      {loadError && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink }}>
+          Couldn't load your conversation history: {loadError}
+        </div>
+      )}
+
       <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12, maxHeight: 420, overflowY: "auto" }}>
+        {loading && <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>Loading your conversation...</div>}
+        {!loading && messages.length === 0 && !loadError && (
+          <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>Nothing here yet — say something to start.</div>
+        )}
         {messages.map((m, i) => (
-          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div key={m.id || i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: m.from === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
               {m.from === "edin" && (
                 <img src={EDIN_ICON} alt="Edin" style={{
@@ -160,6 +168,10 @@ export default function EdinChatView({ dreamEntries = [] }) {
         ))}
         <div ref={endRef} />
       </div>
+
+      {sendError && (
+        <div style={{ fontSize: 12, color: COLORS.coral }}>{sendError}</div>
+      )}
 
       <div style={{ display: "flex", gap: 8 }}>
         <input
@@ -206,10 +218,10 @@ export default function EdinChatView({ dreamEntries = [] }) {
       )}
 
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        Illustrative keyword-matching, not a real language model — but every reply above draws on an
-        actual real number or real finding already sitting in this prototype, not invented content. Voice
-        Mode uses real browser text-to-speech, not a simulated voice. Every message is still checked for
-        crisis language the same way a dream journal entry is, regardless of how the reply itself is generated.
+        Real conversation — every reply comes from a live Gemini call, grounded in your actual recent
+        dreams, goals, and follow-through, and saved so it's here next time you come back. Voice Mode uses
+        real browser text-to-speech, not a simulated voice. Every message is checked for crisis language
+        before Edin ever responds, same as everywhere else in the app.
       </div>
     </div>
   );
