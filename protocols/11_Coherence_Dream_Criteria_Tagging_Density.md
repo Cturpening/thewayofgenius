@@ -143,6 +143,24 @@ a logic. It feels complete rather than scattered. The progression from
 fragmentation toward wholeness in the dream structure itself is the
 first marker.
 
+**Refinement from Chelsey's review pass, on "typically begin with
+fragmented recall":** "Not always — I have noticed even those who say
+they don't dream show up to their first session with material and
+dreams, because when you give the subconscious the mic it will use it.
+At first it can come out heavy — too much brain, quite literally — but
+the subconscious mind knows the pace and what to do. Once the user is
+somewhat caught up, it goes through phases of being chill and then also
+bringing in more. Like when you raise your goals or personal standards,
+it reflects back in what rocks weigh your expansion." So fragmentation
+isn't the universal starting point — some clients arrive with a flood of
+material instead of pieces. The more reliable pattern is the pacing
+itself: a heavy opening burst that the subconscious self-throttles once
+the user catches up, then cycling between quieter and more active phases
+in step with the person's own rising goals and standards. Worth Edin
+tracking that rhythm — heavy open, then self-paced cycling correlated
+with the user raising their own bar — as its own signal, alongside (not
+instead of) the fragment-to-coherence arc within a single dream below.
+
 **What Edin listens for in recall language:** User describes the dream
 as having a beginning and an end, or describes it as feeling complete.
 Contrast with "I only got pieces" or "it was all over the place."
