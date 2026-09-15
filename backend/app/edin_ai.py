@@ -160,3 +160,27 @@ def generate_constitution_reflection(dominant_orientation: str, intention: str) 
         f"The user's stated intention for where this goes next: {intention}\n\n"
         "Write Edin's reflective note for this entry, per your instructions."
     )
+
+
+def generate_chat_reply(history: list[dict], context_summary: str) -> str:
+    """Edin's next reply in the real, persisted live chat -- the one
+    surface where actual back-and-forth conversation happens, so the
+    third technique from protocols/12_Ericksonian_Technique_Library.md
+    (isomorphic/interspersal metaphor) is available here, unlike the
+    one-shot reflection surfaces above, which explicitly reserve it.
+
+    `history` -- ordered list of {"role": "user"|"edin", "content": str}
+    turns, oldest first (see app/main.py's chat endpoint for how much
+    history it actually sends). `context_summary` -- a short, real
+    summary of the account's actual data (recent dream, active goals,
+    last follow-through) built in app/main.py's _chat_context_summary;
+    not full tool use, just enough that Edin isn't blind to what's
+    already in the account.
+    """
+    transcript = "\n".join(f"{'User' if m['role'] == 'user' else 'Edin'}: {m['content']}" for m in history)
+    return generate_reflection(
+        f"Real context about this account right now: {context_summary}\n\n"
+        f"Conversation so far:\n{transcript}\n\n"
+        "Write Edin's next reply in this conversation, per your instructions. "
+        "This is real back-and-forth dialogue, not a one-shot reflection."
+    )

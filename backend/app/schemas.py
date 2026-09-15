@@ -315,18 +315,31 @@ class SymbolValidationOut(BaseModel):
 
 # ---------------------------------------------------------------------------
 # Chat (Edin — Available Anywhere)
+#
+# Real, persisted conversation -- superseded the old scan-only endpoint,
+# which only ran Track B against the (illustrative, client-side-only)
+# chat's messages without ever actually generating or storing a real
+# reply. See database/schema.sql's chat_messages table.
 # ---------------------------------------------------------------------------
 
-class ChatMessageScan(BaseModel):
-    """Every free-text message a user sends to Edin's chat gets scanned
-    through this before the (illustrative, client-side) reply is shown --
-    this is a real Track B checkpoint, not just the dream journal's. See
-    protocols/03_Crisis_Escalation_Protocol.md and the 2026-09-05 finding
-    that this surface had no crisis detection wired to it at all."""
+class ChatMessageOut(BaseModel):
+    id: UUID
+    role: Literal["user", "edin"]
+    content: str
+    created_at: datetime
 
+    model_config = {"from_attributes": True}
+
+
+class ChatMessageCreate(BaseModel):
     text: str
 
 
-class ChatMessageScanResponse(BaseModel):
-    # Present only when Track B's crisis override fired on this message.
+class ChatMessageSendResponse(BaseModel):
+    user_message: ChatMessageOut
+    edin_message: ChatMessageOut
+    # Present only when Track B's crisis override fired on this message
+    # -- edin_message.content is the same text in that case, surfaced
+    # separately too so the frontend can style it distinctly, same
+    # contract as every other crisis_response in this app.
     crisis_response: Optional[str] = None

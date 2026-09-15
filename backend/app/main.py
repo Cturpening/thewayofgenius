@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.database import engine, get_db
 from app.edin_ai import (
     EdinAIError,
+    generate_chat_reply,
     generate_constitution_reflection,
     generate_dream_reflection,
     generate_follow_through_reflection,
@@ -20,6 +21,7 @@ from app.edin_ai import (
 )
 from app.models import (
     CalendarEvent,
+    ChatMessage,
     CoachNote,
     DreamJournalEntry,
     FlaggedEvent,
@@ -34,8 +36,9 @@ from app.schemas import (
     CalendarEventCreate,
     CalendarEventOut,
     CalendarEventResponse,
-    ChatMessageScan,
-    ChatMessageScanResponse,
+    ChatMessageCreate,
+    ChatMessageOut,
+    ChatMessageSendResponse,
     ClientMembershipUpdate,
     ClientOut,
     CoachNoteCreate,
@@ -517,21 +520,111 @@ def delete_calendar_event(event_id: UUID, db: Session = Depends(get_db), user_id
 # Chat (Edin — Available Anywhere)
 # ---------------------------------------------------------------------------
 
-@app.post("/chat-messages/scan", response_model=ChatMessageScanResponse)
-def scan_chat_message(
-    payload: ChatMessageScan, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
-):
-    """The chat widget's replies are illustrative/client-side (see
-    frontend/src/features/chat/chatUtils.js) -- it doesn't persist
-    messages or call an AI provider. But it's a free-text surface a real
-    user could absolutely type crisis language into, so every message
-    still goes through Track B here before the frontend shows its canned
-    reply. Found missing entirely on 2026-09-05 -- see
-    protocols/03_Crisis_Escalation_Protocol.md.
+def _chat_context_summary(db: Session, user_id: UUID) -> str:
+    """Brief, real context about this account for Edin's live chat --
+    not full tool use (that's a bigger future project, see task #27 in
+    the project's own tracking), just enough that the chat isn't blind
+    to what's already in the account. Every piece here is real data,
+    never invented.
     """
+    parts = []
+    latest_dream = (
+        db.query(DreamJournalEntry)
+        .filter(DreamJournalEntry.user_id == user_id)
+        .order_by(DreamJournalEntry.created_at.desc())
+        .first()
+    )
+    if latest_dream:
+        parts.append(
+            f"Most recent dream journal entry ({latest_dream.created_at.strftime('%b %d')}): "
+            f"\"{latest_dream.title or 'untitled'}\", tags: {', '.join(latest_dream.tags) or 'none'}."
+        )
+
+    active_goals = db.query(Goal).filter(Goal.user_id == user_id).order_by(Goal.created_at.desc()).limit(5).all()
+    if active_goals:
+        goal_lines = [f"{g.name} ({g.modality}, {int(g.progress * 100)}% progress)" for g in active_goals]
+        parts.append("Active goals: " + "; ".join(goal_lines) + ".")
+
+    latest_follow_through = (
+        db.query(FollowThroughLogEntry)
+        .filter(FollowThroughLogEntry.user_id == user_id)
+        .order_by(FollowThroughLogEntry.created_at.desc())
+        .first()
+    )
+    if latest_follow_through:
+        parts.append(
+            f"Most recent follow-through entry: \"{latest_follow_through.intention}\" "
+            f"— status: {latest_follow_through.status}."
+        )
+
+    return " ".join(parts) if parts else "No real account data logged yet for this user."
+
+
+@app.get("/chat-messages", response_model=list[ChatMessageOut])
+def list_chat_messages(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return (
+        db.query(ChatMessage)
+        .filter(ChatMessage.user_id == user_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+
+@app.post("/chat-messages", response_model=ChatMessageSendResponse, status_code=201)
+def send_chat_message(
+    payload: ChatMessageCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    """Real, persisted conversation with Edin -- see database/schema.sql's
+    chat_messages table and app/edin_prompt/'s v5 "Live chat conversation"
+    context type. Every message goes through Track B first, same rule as
+    everywhere else in this app; a crisis hit never reaches Gemini and
+    the fixed override message is persisted as Edin's turn instead.
+    """
+    user_message = ChatMessage(user_id=user_id, role="user", content=payload.text)
+    db.add(user_message)
+    db.flush()
+
     crisis_response = _run_track_b(db, user_id, payload.text)
+    if crisis_response:
+        edin_message = ChatMessage(user_id=user_id, role="edin", content=crisis_response)
+        db.add(edin_message)
+        db.commit()
+        db.refresh(user_message)
+        db.refresh(edin_message)
+        return ChatMessageSendResponse(
+            user_message=ChatMessageOut.model_validate(user_message),
+            edin_message=ChatMessageOut.model_validate(edin_message),
+            crisis_response=crisis_response,
+        )
+
+    context = _chat_context_summary(db, user_id)
+    if edin_ai_configured():
+        history = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.user_id == user_id)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(21)  # last 20 turns of context, plus the one just added
+            .all()
+        )
+        history.reverse()
+        try:
+            reply_text = generate_chat_reply([{"role": m.role, "content": m.content} for m in history], context)
+        except EdinAIError as exc:
+            logger.warning("AI reflection failed: %s", exc)
+            reply_text = "Edin's reflection isn't available right now — try sending that again in a bit."
+    else:
+        reply_text = "Edin's real conversation isn't configured yet — no AI provider is set up (GEMINI_API_KEY/ANTHROPIC_API_KEY)."
+
+    edin_message = ChatMessage(user_id=user_id, role="edin", content=reply_text, context_note=context)
+    db.add(edin_message)
     db.commit()
-    return ChatMessageScanResponse(crisis_response=crisis_response)
+    db.refresh(user_message)
+    db.refresh(edin_message)
+    return ChatMessageSendResponse(
+        user_message=ChatMessageOut.model_validate(user_message),
+        edin_message=ChatMessageOut.model_validate(edin_message),
+        crisis_response=None,
+    )
 
 
 # ---------------------------------------------------------------------------

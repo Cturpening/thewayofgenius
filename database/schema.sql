@@ -405,6 +405,43 @@ create policy "Coaches manage the validations they made"
     with check (auth.uid() = validated_by);
 
 -- ---------------------------------------------------------------------------
+-- Chat messages
+--
+-- Real, persisted conversation history with Edin -- replaces the
+-- illustrative, client-side-only chat that never survived a page reload.
+-- One row per turn (both the user's message and Edin's reply are
+-- separate rows, ordered by created_at), scoped to the account like
+-- everything else. `context_note` is a short, optional record of what
+-- real account data (recent dream, active goals, last follow-through)
+-- was actually given to Edin for that specific reply -- not shown to the
+-- user, but real to have on hand later if a reply needs auditing against
+-- what Edin actually knew at the time.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.chat_messages (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    role text not null check (role in ('user', 'edin')),
+    content text not null,
+    context_note text,
+    created_at timestamptz not null default now()
+);
+
+alter table public.chat_messages add column if not exists context_note text;
+alter table public.chat_messages add column if not exists created_at timestamptz not null default now();
+
+create index if not exists chat_messages_user_id_idx
+    on public.chat_messages (user_id, created_at asc);
+
+alter table public.chat_messages enable row level security;
+
+drop policy if exists "Users manage their own chat messages" on public.chat_messages;
+create policy "Users manage their own chat messages"
+    on public.chat_messages for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
 -- Flagged events (safety escalation)
 --
 -- Detection/logging half of the safety-escalation feature (Track B): when

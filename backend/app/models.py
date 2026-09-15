@@ -146,6 +146,18 @@ class SymbolValidation(Base):
     validated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    role = Column(Text, nullable=False)  # "user" | "edin"
+    content = Column(Text, nullable=False)
+    context_note = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+
+
 class FlaggedEvent(Base):
     """Safety-escalation log — see database/schema.sql and
     app/crisis_detection.py (Track B) for the full explanation. Written

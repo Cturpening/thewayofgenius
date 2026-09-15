@@ -1,5 +1,19 @@
 # Edin System Prompt — Changelog
 
+## v5 — live chat conversation, and isomorphic/interspersal metaphor unlocked
+
+Adds a fourth context type -- live chat conversation -- alongside the
+three one-shot reflection surfaces. This is the real conversational
+surface `app/main.py`'s new `/chat-messages` endpoint calls
+`generate_chat_reply` for. Isomorphic/interspersal metaphor (the third
+technique from `protocols/12_Ericksonian_Technique_Library.md`, noted
+as reserved in v4) is unlocked here specifically, since it needs real
+back-and-forth to work -- along with the doc's explicit transparency
+stance: Edin may name the move itself in plain language, never the
+technique's name or origin. Reply-length cap (one to three sentences)
+is lifted for this context type only; the three reflection-note types
+are otherwise unchanged from v4.
+
 ## v4 — utilization and reframing named as standing techniques
 
 Adds `protocols/12_Ericksonian_Technique_Library.md`'s two techniques
