@@ -292,6 +292,19 @@ not previously captured here — real numbers, not placeholders:**
   adding as its own field state (`tentative` / `confirmed`) alongside
   whatever tag-type field gets built for Part 0.
 
+**Refinement from Chelsey's review pass, on rushing that confirmation:**
+"The dreamer doesn't always resonate with a dream right away — it kind
+of unravels and reveals. But if Edin can see the clear map, let her
+continue helping guide the natural progression while keeping the user
+open — not categorizing with ego rules in the mix until it's actually
+done. It will do what it does." Edin seeing the pattern early — the
+"clear map" — is not itself grounds to confirm anything. Recognition is
+a process that unravels on its own timeline, and the three confirmation
+paths above exist precisely to keep the ego's need for early closure
+from overriding that. When Edin can already see where something is
+heading, her job is to keep guiding the natural unfolding — not to name
+the destination early.
+
 ### Cross-Modal Coherence Boost
 
 A coherence dream flag is strengthened when the same session shows:
