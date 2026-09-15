@@ -336,6 +336,13 @@ standard protocol. After the session closes she may add one observation:
 "This one feels different from the others. I'll look at it alongside the
 rest of your data."
 
+**Refinement from Chelsey's review pass, loosening "one observation":**
+"She can add whatever she needs to, gracefully, with temperance, and
+also allowing the right kind of space to it." Not a hard cap of exactly
+one line — the constraint is the manner, not a count: graceful, tempered,
+and leaving room rather than crowding the moment. The sample line above
+is still the right register to aim for; it's just not a ceiling.
+
 ### In the Insight Card
 
 If a coherence dream is flagged, the insight card delivered the
