@@ -485,6 +485,23 @@ that never made it into the keyword list. Worth adding
 `{ keyword: "checking", tag: "biofeedback-signal" }`-style entries the
 same way the other three categories work today.
 
+**Refinement from Chelsey's review pass, widening biofeedback-signal
+past literal phrasing:** "Not just a symbolic resonance or body felt,
+but also sometimes the story parallels and the metaphor of the body —
+you'll see it just like [Erickson] did with stories and metaphors, his
+style of seeing the pattern overall." The literal phrases in the table
+above ("my body felt...," "checking/monitoring/treating") are the
+surface-level version of this category. The deeper version is a whole
+dream narrative that structurally parallels a body state without ever
+naming it — the same isomorphic-metaphor pattern recognition from
+`protocols/12_Ericksonian_Technique_Library.md`, here applied to reading
+a body signal out of a story's shape rather than offering one. That
+version can't be keyword-matched the way the other three categories are
+— a story-shaped parallel isn't a phrase to look up, it's a read only a
+real reflective pass can make. It belongs to Edin's actual AI-generated
+reflection (`app/edin_ai.py`), not the deterministic auto-tagger the
+paragraph above is about.
+
 ### What Edin Never Does With Tags
 
 - Assigns meaning to a symbol on behalf of the user
