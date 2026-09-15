@@ -27,7 +27,7 @@ class MembershipPlan(Base):
     description = Column(Text, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class Profile(Base):
@@ -59,7 +59,7 @@ class DreamJournalEntry(Base):
     tags = Column(ARRAY(Text), nullable=False, default=list)
     edin_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class GeniusConstitutionResult(Base):
@@ -95,7 +95,7 @@ class FollowThroughLogEntry(Base):
     emotional_shift = Column(Text, nullable=True)
     edin_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class Goal(Base):
@@ -108,7 +108,7 @@ class Goal(Base):
     modality = Column(Text, nullable=False)
     progress = Column(Numeric(3, 2), nullable=False, default=0)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
 class CalendarEvent(Base):
