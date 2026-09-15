@@ -310,7 +310,11 @@ export default function App() {
             <button onClick={() => setEdinOpen(false)} style={{ border: "none", background: "transparent", color: COLORS.inkDim, cursor: "pointer", fontSize: 16 }}>×</button>
           </div>
           <div style={{ padding: "14px", overflowY: "auto" }}>
-            <EdinChatView dreamEntries={dreamEntries} />
+            <EdinChatView
+              dreamEntries={dreamEntries}
+              compact
+              onOpenFull={() => { setView("edin"); setEdinOpen(false); }}
+            />
           </div>
         </div>
       )}

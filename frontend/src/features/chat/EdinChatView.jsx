@@ -6,7 +6,13 @@ import SpeakButton from "../../components/common/SpeakButton";
 import { CONSTITUTION_SCENARIOS } from "../genius-constitution/data/constitutionData";
 import { fetchChatMessages, sendChatMessage } from "./api";
 
-export default function EdinChatView({ dreamEntries = [] }) {
+// `compact`: used by the floating "Edin -- Available Anywhere" popup (see
+// App.jsx). Same underlying conversation and memory as the full Edin tab --
+// every message still goes through the same /chat-messages endpoints and
+// account context -- it just doesn't render the full scrollback and extra
+// chrome (journal strip, Constitution check-in, disclaimer) in a 360px
+// popup. `onOpenFull`, when given, renders a link back to the full tab.
+export default function EdinChatView({ dreamEntries = [], compact = false, onOpenFull = null }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -15,6 +21,12 @@ export default function EdinChatView({ dreamEntries = [] }) {
   const [sendError, setSendError] = useState(null);
   const [voiceMode, setVoiceMode] = useState(false);
   const [activeScenario, setActiveScenario] = useState(null);
+  // "New chat" doesn't delete anything -- Edin's memory of the account
+  // stays whole either way -- it just collapses everything before the
+  // marker out of view, the same way a normal AI's chat history stays
+  // reachable without cluttering the active conversation.
+  const [sessionMarkerIndex, setSessionMarkerIndex] = useState(null);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
   const endRef = useRef(null);
   const prevCountRef = useRef(0);
 
@@ -60,6 +72,11 @@ export default function EdinChatView({ dreamEntries = [] }) {
     }
   };
 
+  const startNewChat = () => {
+    setSessionMarkerIndex(messages.length);
+    setHistoryExpanded(false);
+  };
+
   const startConstitutionCheckIn = () => {
     const scenario = CONSTITUTION_SCENARIOS[Math.floor(Math.random() * CONSTITUTION_SCENARIOS.length)];
     setActiveScenario(scenario);
@@ -76,45 +93,81 @@ export default function EdinChatView({ dreamEntries = [] }) {
     setActiveScenario(null);
   };
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ background: `${COLORS.teal}14`, border: `1px solid ${COLORS.tealDim}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
-        This is Edin — the voice, not the data. The Genius Profile Map, Body Map, and Arc View are what
-        Edin knows about you; this is what it sounds like when it talks to you about it. Try typing about
-        sleep, the door symbol, your gut, or tonight's practice — those have real data behind them.
-      </div>
+  const visibleMessages = compact
+    ? messages.slice(-6)
+    : sessionMarkerIndex !== null && !historyExpanded
+    ? messages.slice(sessionMarkerIndex)
+    : messages;
+  const hiddenEarlierCount = compact || historyExpanded ? 0 : sessionMarkerIndex ?? 0;
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: compact ? 10 : 16 }}>
+      {!compact && (
+        <div style={{ background: `${COLORS.teal}14`, border: `1px solid ${COLORS.tealDim}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+          This is Edin — the voice, not the data. The Genius Profile Map, Body Map, and Arc View are what
+          Edin knows about you; this is what it sounds like when it talks to you about it. Try typing about
+          sleep, the door symbol, your gut, or tonight's practice — those have real data behind them.
+        </div>
+      )}
+
+      {compact && onOpenFull && (
         <button
-          onClick={startConstitutionCheckIn}
-          disabled={!!activeScenario}
-          style={{
-            padding: "7px 14px", borderRadius: 8, border: `1px solid ${COLORS.gold}`,
-            background: `${COLORS.gold}18`, color: COLORS.gold, fontSize: 12,
-            cursor: activeScenario ? "default" : "pointer", opacity: activeScenario ? 0.5 : 1,
-          }}
+          onClick={onOpenFull}
+          style={{ alignSelf: "flex-end", border: "none", background: "transparent", color: COLORS.teal, fontSize: 11, cursor: "pointer", padding: 0 }}
         >
-          🧭 Check In On Your Constitution
+          Open full conversation →
         </button>
-        <button
-          onClick={() => { const next = !voiceMode; setVoiceMode(next); if (!next) stopSpeaking(); }}
-          style={{
-            padding: "7px 14px", borderRadius: 8, whiteSpace: "nowrap",
-            border: `1px solid ${voiceMode ? COLORS.teal : COLORS.grid}`,
-            background: voiceMode ? `${COLORS.teal}22` : "transparent",
-            color: voiceMode ? COLORS.teal : COLORS.inkDim,
-            fontSize: 12, cursor: "pointer",
-          }}
-        >
-          {voiceMode ? "🔊 Voice Mode: On" : "🔈 Voice Mode: Off"}
-        </button>
-      </div>
-      <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginTop: -10, lineHeight: 1.4 }}>
-        The full flare-style assessment lives in the Psyche Dojo for a first pass — but Edin can also run
-        one of these scenarios right here, naturally, whenever it's actually relevant, and fold the
-        answer back into the same real data the full Constitution uses. Voice Mode above is a real voice
-        companion — for anyone who's blind, low-vision, or who just prefers to listen.
-      </div>
+      )}
+
+      {!compact && (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={startConstitutionCheckIn}
+                disabled={!!activeScenario}
+                style={{
+                  padding: "7px 14px", borderRadius: 8, border: `1px solid ${COLORS.gold}`,
+                  background: `${COLORS.gold}18`, color: COLORS.gold, fontSize: 12,
+                  cursor: activeScenario ? "default" : "pointer", opacity: activeScenario ? 0.5 : 1,
+                }}
+              >
+                🧭 Check In On Your Constitution
+              </button>
+              <button
+                onClick={startNewChat}
+                disabled={messages.length === 0}
+                title="Starts a fresh-looking conversation -- Edin still remembers your account, and the earlier messages stay one click away."
+                style={{
+                  padding: "7px 14px", borderRadius: 8, border: `1px solid ${COLORS.grid}`,
+                  background: "transparent", color: COLORS.inkDim, fontSize: 12,
+                  cursor: messages.length === 0 ? "default" : "pointer", opacity: messages.length === 0 ? 0.5 : 1,
+                }}
+              >
+                🆕 New Chat
+              </button>
+            </div>
+            <button
+              onClick={() => { const next = !voiceMode; setVoiceMode(next); if (!next) stopSpeaking(); }}
+              style={{
+                padding: "7px 14px", borderRadius: 8, whiteSpace: "nowrap",
+                border: `1px solid ${voiceMode ? COLORS.teal : COLORS.grid}`,
+                background: voiceMode ? `${COLORS.teal}22` : "transparent",
+                color: voiceMode ? COLORS.teal : COLORS.inkDim,
+                fontSize: 12, cursor: "pointer",
+              }}
+            >
+              {voiceMode ? "🔊 Voice Mode: On" : "🔈 Voice Mode: Off"}
+            </button>
+          </div>
+          <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginTop: -10, lineHeight: 1.4 }}>
+            The full flare-style assessment lives in the Psyche Dojo for a first pass — but Edin can also run
+            one of these scenarios right here, naturally, whenever it's actually relevant, and fold the
+            answer back into the same real data the full Constitution uses. Voice Mode above is a real voice
+            companion — for anyone who's blind, low-vision, or who just prefers to listen.
+          </div>
+        </>
+      )}
 
       {loadError && (
         <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink }}>
@@ -122,12 +175,23 @@ export default function EdinChatView({ dreamEntries = [] }) {
         </div>
       )}
 
-      <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12, maxHeight: 420, overflowY: "auto" }}>
+      <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: compact ? "12px 14px" : "18px 20px", display: "flex", flexDirection: "column", gap: 12, maxHeight: compact ? 260 : 420, overflowY: "auto" }}>
         {loading && <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>Loading your conversation...</div>}
         {!loading && messages.length === 0 && !loadError && (
           <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>Nothing here yet — say something to start.</div>
         )}
-        {messages.map((m, i) => (
+        {hiddenEarlierCount > 0 && (
+          <button
+            onClick={() => setHistoryExpanded(true)}
+            style={{
+              alignSelf: "center", border: `1px solid ${COLORS.grid}`, background: "transparent",
+              color: COLORS.inkDim, fontSize: 11, cursor: "pointer", borderRadius: 20, padding: "4px 12px",
+            }}
+          >
+            ↑ Show earlier conversation ({hiddenEarlierCount} messages)
+          </button>
+        )}
+        {visibleMessages.map((m, i) => (
           <div key={m.id || i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: m.from === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
               {m.from === "edin" && (
@@ -166,6 +230,20 @@ export default function EdinChatView({ dreamEntries = [] }) {
             )}
           </div>
         ))}
+        {sending && (
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+            <img src={EDIN_ICON} alt="Edin" style={{
+              width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginRight: 2,
+              objectFit: "cover", boxShadow: `0 0 8px ${COLORS.gold}55`,
+            }} />
+            <div style={{
+              padding: "10px 14px", borderRadius: 14, background: COLORS.bgPanelAlt,
+              color: COLORS.inkDim, fontSize: 13, fontStyle: "italic",
+            }}>
+              Edin is thinking…
+            </div>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
@@ -195,7 +273,7 @@ export default function EdinChatView({ dreamEntries = [] }) {
         </button>
       </div>
 
-      {dreamEntries.length > 0 && (
+      {!compact && dreamEntries.length > 0 && (
         <div>
           <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 8 }}>
             RECENT JOURNAL ENTRIES — QUICK REFERENCE
@@ -217,12 +295,14 @@ export default function EdinChatView({ dreamEntries = [] }) {
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        Real conversation — every reply comes from a live Gemini call, grounded in your actual recent
-        dreams, goals, and follow-through, and saved so it's here next time you come back. Voice Mode uses
-        real browser text-to-speech, not a simulated voice. Every message is checked for crisis language
-        before Edin ever responds, same as everywhere else in the app.
-      </div>
+      {!compact && (
+        <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
+          Real conversation — every reply comes from a live Gemini call, grounded in your actual recent
+          dreams, goals, and follow-through, and saved so it's here next time you come back. Voice Mode uses
+          real browser text-to-speech, not a simulated voice. Every message is checked for crisis language
+          before Edin ever responds, same as everywhere else in the app.
+        </div>
+      )}
     </div>
   );
 }
