@@ -244,6 +244,16 @@ Recall_completeness assessed as Full. Emotional tone calm or positive
 independent of content. Often follows a period of sustained emotional
 intensity in prior sessions.
 
+**Added from Chelsey's review pass — the deliberate version of this
+marker:** "We also will have dream incubation, where they do
+intentionally put the ask out there for a response as well, and track
+those with Edin and the calendar and journals." This marker as written
+above is the *unprompted* case — the dream answers something the user
+was carrying without consciously asking. Dream incubation is the same
+mechanism deliberately invoked: the user states the question ahead of
+sleep instead of it surfacing after the fact, which is a distinct,
+trackable behavior in its own right — see Part 4's new Behavior 3 below.
+
 ---
 
 ## PART 2 — QUANTITATIVE TAGGING RULES
@@ -403,6 +413,34 @@ dream entry. Flag it in the Symbolic Dictionary as a high-significance
 first entry. Prompt the user to define it while fresh: "This one arrived
 with its meaning already in it — what is it telling you?"
 
+### Behavior 3 — Dream Incubation (Intentional Ask, Tracked Response)
+
+Added from Chelsey's review pass. Distinct from both behaviors above:
+Behavior 1 happens once the user is already asleep, marking something
+for waking recall; Behavior 2 is the subconscious tagging itself
+unprompted. Dream incubation happens before sleep — the user
+deliberately puts a question or ask out into the process ahead of time,
+then a following dream entry gets tracked as a possible response. This
+is the deliberate counterpart to Marker 5 in Part 1 (the dream that
+arrives as an answer) — same mechanism, but the question is stated and
+timestamped instead of surfacing only after the fact.
+
+**In the data:** The ask itself needs to be logged before the dream
+happens — on the calendar, or wherever the user sets intentions — so a
+later dream entry can actually be checked against a real, timestamped
+question rather than a connection read in after the fact once the dream
+already exists.
+
+**Edin's role:** When a dream entry follows a recent incubation ask and
+plausibly speaks to it, connect the two — in the same tentative,
+hypothesis-not-verdict language used everywhere else in this doc ("this
+might be responding to what you asked about a few nights ago"), never
+asserting the connection as certain.
+
+**Applicable training level:** Any — unlike Behavior 1's waking-anchor
+extension, incubation doesn't require prior lucid-awareness development;
+it's just a stated intention before sleep.
+
 ### The Real Trigger-Phrase Taxonomy
 
 `edins-protocols.md` defines four trigger-phrase categories with exact
@@ -459,6 +497,18 @@ Added for the dev team — not part of Chelsey's spec above. This is the
 one place this document needs a hard look before anyone tries to build
 against it.
 
+- **Dream incubation (Part 4's new Behavior 3) has no tracking
+  infrastructure yet.** Nothing in the app today lets a user log an
+  "ask" ahead of a dream, on the calendar or anywhere else, so there's
+  no timestamped record for a later dream entry to be checked against.
+  `calendar_events` (`database/schema.sql`) already has a `category`
+  enum (`health`, `goal`, `incubation`, `journal`, `biofeedback`,
+  `other`) that includes `incubation` — so the category exists in the
+  schema, but nothing in the app actually creates that kind of event or
+  links it forward to the dream entry that follows. Building this for
+  real means: a way to log the ask (reusing the existing calendar
+  category, or a dedicated field), and a way for Edin to find the
+  nearest prior incubation ask when reflecting on a new dream entry.
 - **Most of the fields this document references don't exist as real
   database columns yet.** `pattern_recurrence`, `emotional_intensity`,
   `emotional_tone`, `recall_completeness`, and `somatic_location` all
