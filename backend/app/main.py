@@ -528,17 +528,19 @@ def _chat_context_summary(db: Session, user_id: UUID) -> str:
     never invented.
     """
     parts = []
-    latest_dream = (
+    recent_dreams = (
         db.query(DreamJournalEntry)
         .filter(DreamJournalEntry.user_id == user_id)
         .order_by(DreamJournalEntry.created_at.desc())
-        .first()
+        .limit(5)
+        .all()
     )
-    if latest_dream:
-        parts.append(
-            f"Most recent dream journal entry ({latest_dream.created_at.strftime('%b %d')}): "
-            f"\"{latest_dream.title or 'untitled'}\", tags: {', '.join(latest_dream.tags) or 'none'}."
-        )
+    if recent_dreams:
+        dream_lines = [
+            f"{d.created_at.strftime('%b %d')}: \"{d.title or 'untitled'}\", tags: {', '.join(d.tags) or 'none'}"
+            for d in recent_dreams
+        ]
+        parts.append(f"Recent dream journal entries, most recent first ({len(recent_dreams)} total): " + "; ".join(dream_lines) + ".")
 
     active_goals = db.query(Goal).filter(Goal.user_id == user_id).order_by(Goal.created_at.desc()).limit(5).all()
     if active_goals:
