@@ -4,23 +4,30 @@ import { OrbitControls, Stars, Sparkles, Billboard, Text, Line } from "@react-th
 import { COLORS } from "../../theme/tokens";
 import { CROSS_LINKS, PROFILE_NODES } from "./data/profileNodes";
 import { BODY_SYMBOLS } from "../library/data/bodySymbols";
+import { BODY_SYSTEMS } from "../library/data/bodySystems";
 import { buildSymbolGraph, entriesForTag, hashTag, neighborsForTag, SYMBOL_PALETTE } from "./symbolGraph";
 import { fibonacciSpherePosition } from "./sphereLayout";
 import { HOLOGRAM_PALETTES, useHologramTheme } from "./hologramTheme";
 
-// One shared 3D scene instead of four separate holograms -- Chelsey's own
-// framing: this should feel like one personal universe with regions, not
-// four unrelated maps. Each real dataset gets its own floating region,
-// spaced apart so they read as distinct clusters in the same space
-// (architecture left, your symbols right, body behind, inner team in
-// front) rather than superimposed on top of each other. Every layer is
-// independently toggleable; any combination can be on at once.
+// One shared 3D scene instead of four separate holograms. Chelsey's own
+// framing, twice over: (1) this should feel like one personal universe
+// with regions, not four unrelated maps glued together, and (2) the body
+// is the real anchor -- dream symbols, the app's own architecture, and
+// the inner team all relate back to it, so it sits at the center with
+// the other three regions orbiting it, instead of four arbitrary compass
+// points with no relationship to each other.
+
+const SATELLITE_RADIUS = 11;
+function satellitePosition(index) {
+  const angle = -Math.PI / 2 + index * ((2 * Math.PI) / 3);
+  return [SATELLITE_RADIUS * Math.cos(angle), 0, SATELLITE_RADIUS * Math.sin(angle)];
+}
 
 const REGION_OFFSET = {
-  architecture: [-9, 0, 0],
-  symbols: [9, 0, 0],
-  body: [0, 0, -9],
-  team: [0, 0, 9],
+  body: [0, 0, 0],
+  architecture: satellitePosition(0),
+  symbols: satellitePosition(1),
+  team: satellitePosition(2),
 };
 
 const REGION_LABEL = {
@@ -29,6 +36,23 @@ const REGION_LABEL = {
   body: "Body",
   team: "Inner Team",
 };
+
+// Subtle continuous look-around driven by mouse position anywhere over the
+// canvas, not just while dragging -- layered on top of OrbitControls
+// (which still owns deliberate drag-to-orbit/scroll-to-zoom) by tilting
+// the world content itself rather than fighting OrbitControls for the
+// camera transform.
+function MouseParallax({ children }) {
+  const group = useRef();
+  useFrame((state) => {
+    if (!group.current) return;
+    const targetY = state.pointer.x * 0.35;
+    const targetX = -state.pointer.y * 0.18;
+    group.current.rotation.y += (targetY - group.current.rotation.y) * 0.04;
+    group.current.rotation.x += (targetX - group.current.rotation.x) * 0.04;
+  });
+  return <group ref={group}>{children}</group>;
+}
 
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
@@ -133,22 +157,49 @@ function SymbolsRegion({ dreamEntries, selected, onSelect, palette }) {
   );
 }
 
+// heightFrac/cy both run head-to-foot (0/low = head, 1/high = feet) --
+// this shared mapping is what lets the symbolic points (BODY_SYMBOLS) and
+// the real physiological systems (BODY_SYSTEMS) line up on the same
+// spine even though they come from two different data files.
+const SPINE_TOP = 2.6, SPINE_BOTTOM = -2.6;
+function bodyHeightFromFrac(frac) {
+  return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
+}
+
 function BodyRegion({ selected, onSelect, palette }) {
   const offset = REGION_OFFSET.body;
   const cyMin = Math.min(...BODY_SYMBOLS.map((s) => s.cy));
   const cyMax = Math.max(...BODY_SYMBOLS.map((s) => s.cy));
-  const toY = (cy) => 2.2 - ((cy - cyMin) / (cyMax - cyMin)) * 4.4;
+  const symbolY = (cy) => bodyHeightFromFrac((cy - cyMin) / (cyMax - cyMin));
+
+  // Physiological systems orbit the spine in a small ring at their own
+  // height, rather than sitting directly on it -- keeps them visually
+  // distinct from the symbolic chakra-style points while still reading
+  // as "part of the same body."
+  const systemPositions = useMemo(() => {
+    return BODY_SYSTEMS.map((s, i) => {
+      const angle = (i / BODY_SYSTEMS.length) * Math.PI * 2;
+      const y = bodyHeightFromFrac(s.heightFrac);
+      return { ...s, position: [Math.cos(angle) * 1.5, y, Math.sin(angle) * 1.5] };
+    });
+  }, []);
 
   return (
     <group position={offset}>
       {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
-      <Line points={[[0, 2.6, 0], [0, -2.6, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
-      <mesh position={[0, 2.8, 0]}>
+      <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
+      <mesh position={[0, SPINE_TOP + 0.2, 0]}>
         <sphereGeometry args={[0.35, 12, 12]} />
         <meshBasicMaterial color={COLORS.grid} wireframe transparent opacity={0.5} />
       </mesh>
+      {systemPositions.map((s) => (
+        <Line key={s.key + "-ring"} points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
+      ))}
       {BODY_SYMBOLS.map((s) => (
-        <MapNode key={s.key} id={`body:${s.key}`} label={s.label} color={s.color} position={[0, toY(s.cy), 0]} pulsing isSelected={selected === `body:${s.key}`} onSelect={onSelect} palette={palette} />
+        <MapNode key={s.key} id={`body:${s.key}`} label={s.label} color={s.color} position={[0, symbolY(s.cy), 0]} pulsing isSelected={selected === `body:${s.key}`} onSelect={onSelect} palette={palette} />
+      ))}
+      {systemPositions.map((s) => (
+        <MapNode key={s.key} id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
       ))}
     </group>
   );
@@ -200,17 +251,19 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
         </>
       )}
 
-      {layers.architecture && <RegionLabel offset={REGION_OFFSET.architecture} text={REGION_LABEL.architecture} palette={palette} />}
-      {layers.symbols && dreamEntries.length > 0 && <RegionLabel offset={REGION_OFFSET.symbols} text={REGION_LABEL.symbols} palette={palette} />}
-      {layers.body && <RegionLabel offset={REGION_OFFSET.body} text={REGION_LABEL.body} palette={palette} />}
-      {layers.team && teamMembers.length > 0 && <RegionLabel offset={REGION_OFFSET.team} text={REGION_LABEL.team} palette={palette} />}
+      <MouseParallax>
+        {layers.architecture && <RegionLabel offset={REGION_OFFSET.architecture} text={REGION_LABEL.architecture} palette={palette} />}
+        {layers.symbols && dreamEntries.length > 0 && <RegionLabel offset={REGION_OFFSET.symbols} text={REGION_LABEL.symbols} palette={palette} />}
+        {layers.body && <RegionLabel offset={REGION_OFFSET.body} text={REGION_LABEL.body} palette={palette} />}
+        {layers.team && teamMembers.length > 0 && <RegionLabel offset={REGION_OFFSET.team} text={REGION_LABEL.team} palette={palette} />}
 
-      {layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
-      {layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
-      {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} />}
-      {layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
+        {layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
+        {layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
+        {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} />}
+        {layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
+      </MouseParallax>
 
-      <OrbitControls enableZoom enablePan autoRotate autoRotateSpeed={0.25} minDistance={4} maxDistance={40} />
+      <OrbitControls enableZoom enablePan autoRotate autoRotateSpeed={0.2} minDistance={4} maxDistance={40} />
     </>
   );
 }
@@ -231,7 +284,9 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
   const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Resolve whatever's selected into real content, regardless of which
-  // region it came from -- id is "layer:key" (see MapNode).
+  // region it came from -- id is "layer:key" (see MapNode). "body-system"
+  // is its own layer prefix even though it renders inside the Body region,
+  // since it's a distinct real dataset (see bodySystems.js's own note).
   const [selLayer, selKey] = selected ? selected.split(":") : [null, null];
   let panel = null;
   if (selLayer === "architecture") {
@@ -297,6 +352,19 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
         <div style={{ fontSize: 11, color: COLORS.inkDim, lineHeight: 1.5 }}>{s.bioNote}</div>
       </>
     );
+  } else if (selLayer === "body-system") {
+    const s = BODY_SYSTEMS.find((x) => x.key === selKey);
+    if (s) panel = (
+      <>
+        <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>REFERENCE — REAL PHYSIOLOGY, NOT CLIENT DATA</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label}</div>
+        <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 12, lineHeight: 1.5 }}>{s.function}</div>
+        <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px" }}>
+          <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>OFTEN SHOWS UP SYMBOLICALLY AS</div>
+          <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>{s.symbolicParallel}</div>
+        </div>
+      </>
+    );
   } else if (selLayer === "team") {
     const m = teamMembers.find((x) => x.id === selKey);
     const modeLabel = { front: "FRONT-SPACE — ACTIVE HELPER", background: "BACKGROUND — DATA RUNNER" };
@@ -318,10 +386,12 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
-        One universe, four real regions -- toggle any combination on. Architecture and Your Symbols are
-        real data; Body is illustrative (see Body View); Inner Team reflects whatever you've named in
-        that tab this session (not yet saved between visits). Drag to move through the space, scroll to
-        zoom, tap a point for the real story behind it.
+        One universe, four real regions, the Body at the center since everything else is understood in
+        relation to it -- toggle any combination on. Architecture and Your Symbols are real data; Body
+        now includes both the symbolic chakra-style points (illustrative, see Body View) and real
+        physiological systems as reference vocabulary for a coach tracking real client patterns; Inner
+        Team reflects whatever you've named this session (not yet saved between visits). Move your mouse
+        to look around, drag to orbit deliberately, scroll to zoom, tap a point for the real story.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -372,7 +442,8 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
           {!panel ? (
             <div style={{ fontSize: 12.5, color: COLORS.inkDim, lineHeight: 1.6 }}>
               Tap any point in the map to see the real story behind it. Pull back (scroll out) to see all
-              your active regions floating together; zoom into one to explore it closely.
+              your active regions floating together around the Body at the center; zoom into one to
+              explore it closely.
             </div>
           ) : panel}
         </div>
