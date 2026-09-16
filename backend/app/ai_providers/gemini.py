@@ -108,18 +108,49 @@ def generate_with_tools(
 
     client = genai.Client(api_key=settings.gemini_api_key)
     tool = types.Tool(function_declarations=[_declaration_to_function_declaration(d) for d in tool_declarations])
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt, max_output_tokens=600, temperature=0.7, tools=[tool]
-    )
+
+    def build_config(*, minimal_thinking: bool) -> types.GenerateContentConfig:
+        kwargs = dict(
+            system_instruction=system_prompt,
+            # Higher than generate()'s 500 -- with tools attached, the model
+            # spends part of its budget reasoning about whether/which tool
+            # to call before it ever writes the visible reply, on top of
+            # that reply itself. Without minimal_thinking below this was
+            # silently truncating mid-sentence on real live-tested replies.
+            max_output_tokens=800,
+            temperature=0.7,
+            tools=[tool],
+        )
+        if minimal_thinking:
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL)
+        return types.GenerateContentConfig(**kwargs)
 
     contents = [types.Content(role="user", parts=[types.Part(text=user_content)])]
     calls_made: list[dict] = []
+    # Discovered on the first real call below, then reused for every
+    # subsequent round -- same "try MINIMAL, fall back if the model
+    # doesn't support the field" contract as generate() above, but without
+    # wasting a whole extra round-trip just to probe for it.
+    minimal_thinking = True
 
     for _ in range(max_rounds):
         try:
-            response = client.models.generate_content(model=settings.gemini_model, contents=contents, config=config)
-        except Exception as exc:  # pragma: no cover -- network/SDK errors
-            raise ProviderError(f"Gemini call failed: {exc}") from exc
+            response = client.models.generate_content(
+                model=settings.gemini_model, contents=contents, config=build_config(minimal_thinking=minimal_thinking)
+            )
+        except Exception as exc:
+            if minimal_thinking:
+                # This model doesn't support thinking_config -- retry this
+                # same round without it, and stop trying it on later rounds.
+                minimal_thinking = False
+                try:
+                    response = client.models.generate_content(
+                        model=settings.gemini_model, contents=contents, config=build_config(minimal_thinking=False)
+                    )
+                except Exception as retry_exc:  # pragma: no cover -- network/SDK errors
+                    raise ProviderError(f"Gemini call failed: {retry_exc}") from retry_exc
+            else:
+                raise ProviderError(f"Gemini call failed: {exc}") from exc  # pragma: no cover -- network/SDK errors
 
         calls = response.function_calls or []
         if not calls:

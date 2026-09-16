@@ -1,5 +1,22 @@
 # Edin System Prompt — Changelog
 
+## v8 — notice and offer, instead of staying silent
+
+Direct response to a real gap a live test against actual Gemini surfaced:
+casual phrasing ("hey, i actually shipped that thing I told you about")
+didn't reliably trigger update_follow_through_status the way a direct ask
+("mark it as done") did -- she has eyes on real category-shaped content
+(a completed intention, a real dream, a body-map story) but the existing
+"only call a tool when asked" rule gave her no way to act on noticing it
+short of calling a tool nobody asked her to call. Adds a "Notice and
+offer, when they haven't asked" paragraph: name what she noticed and
+offer the specific real action in plain terms, then wait for a yes before
+calling anything. This is a real behavior change, not just a wording
+tweak, so it needs live-conversation testing to confirm it actually
+closes the gap it was written for, the same way the gap itself was found
+by live testing rather than assumed. Everything else is unchanged from
+v7.
+
 ## v7 — the rest of the toolbox, and look-before-you-guess
 
 Widens the "Tool use in live chat" section for backlog #27 Phase 2's new

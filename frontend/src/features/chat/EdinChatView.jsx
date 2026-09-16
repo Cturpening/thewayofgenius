@@ -160,7 +160,9 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
           sleep, the door symbol, your gut, or tonight's practice — those have real data behind them. She can
           also act for real now, not just talk: log a dream, create or update a goal, log or resolve a
           follow-through intention, or add a calendar item, right from this conversation. Any reply where
-          she actually did something shows a small ✓ chip so it's never invisible.
+          she actually did something shows a small ✓ chip so it's never invisible. She'll also notice on her
+          own when something you say sounds worth recording and ask first — she never saves anything without
+          you saying yes.
         </div>
       )}
 
