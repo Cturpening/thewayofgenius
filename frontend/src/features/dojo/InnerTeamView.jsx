@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
-import { INITIAL_TEAM_MEMBERS } from "./data/teamMembers";
 
-export default function InnerTeamView() {
-  const [members, setMembers] = useState(INITIAL_TEAM_MEMBERS);
-  const [selectedId, setSelectedId] = useState(INITIAL_TEAM_MEMBERS[0].id);
+// `members`/`setMembers` are lifted to GeniusProfileHub (see its own note)
+// so the same real team list shows up in both this flat view and the
+// Living Map's Inner Team layer -- one shared list, not two that can
+// drift apart. Still not persisted to the backend (see that note); this
+// only keeps the two views in sync with each other for now.
+export default function InnerTeamView({ members, setMembers }) {
+  const [selectedId, setSelectedId] = useState(members[0]?.id ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newMode, setNewMode] = useState("front");
@@ -15,6 +18,12 @@ export default function InnerTeamView() {
   const modeColor = { front: COLORS.teal, background: COLORS.violet };
   const modeLabel = { front: "FRONT-SPACE — ACTIVE HELPER", background: "BACKGROUND — DATA RUNNER" };
   const selected = members.find((m) => m.id === selectedId) || members[0];
+
+  // Pre-existing edge case, not introduced here: deleting the last member
+  // used to leave `selected` undefined and the angle math dividing by
+  // zero. Guarded since lifting this state up makes an empty team a real
+  // reachable state (e.g. cleared from the Living Map's own controls too).
+  const isEmpty = members.length === 0;
 
   const addMember = () => {
     if (!newName.trim()) return;
@@ -41,6 +50,13 @@ export default function InnerTeamView() {
         data as an interface for you. It's a relationship, and a creative one — add as many as show up for you.
       </div>
 
+      {isEmpty && (
+        <div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>
+          No one on the team right now -- add your first member below.
+        </div>
+      )}
+
+      {!isEmpty && (
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{
           maxWidth: 420,
@@ -100,6 +116,7 @@ export default function InnerTeamView() {
           </button>
         </div>
       </div>
+      )}
 
       {!showAdd ? (
         <button
