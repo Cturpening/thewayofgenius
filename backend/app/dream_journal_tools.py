@@ -67,18 +67,42 @@ TOOL_DECLARATIONS = [
             "required": ["entry_text"],
         },
     },
+    {
+        "name": "list_recent_dreams",
+        "description": (
+            "List the user's real recent dream journal entries (title, date, tags) -- use this when the "
+            "user references a past dream you need to check details on, rather than guessing at what it said."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
 ]
 
 
 def make_executor(db: Session, user_id: UUID):
-    def execute(name: str, args: dict) -> dict:
-        if name != "log_dream_journal_entry":
-            return None  # not this domain's tool -- let the aggregator try the next one
-        entry, crisis_response = create_entry(
-            db, user_id, title=args.get("title"), entry_text=args["entry_text"], tags=args.get("tags")
-        )
-        if crisis_response:
-            return {"saved": True, "crisis_response": crisis_response}
-        return {"saved": True, "entry_id": str(entry.id), "edin_note": entry.edin_note}
+    def execute(name: str, args: dict) -> dict | None:
+        if name == "log_dream_journal_entry":
+            entry, crisis_response = create_entry(
+                db, user_id, title=args.get("title"), entry_text=args["entry_text"], tags=args.get("tags")
+            )
+            if crisis_response:
+                return {"saved": True, "crisis_response": crisis_response}
+            return {"saved": True, "entry_id": str(entry.id), "edin_note": entry.edin_note}
+
+        if name == "list_recent_dreams":
+            entries = (
+                db.query(DreamJournalEntry)
+                .filter(DreamJournalEntry.user_id == user_id)
+                .order_by(DreamJournalEntry.created_at.desc())
+                .limit(10)
+                .all()
+            )
+            return {
+                "entries": [
+                    {"title": e.title, "date": e.created_at.isoformat(), "tags": e.tags}
+                    for e in entries
+                ]
+            }
+
+        return None  # not this domain's tool -- let the aggregator try the next one
 
     return execute

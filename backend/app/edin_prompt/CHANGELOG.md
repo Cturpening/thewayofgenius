@@ -1,5 +1,17 @@
 # Edin System Prompt — Changelog
 
+## v9 — read before you build on top of something
+
+Adds two read-only lookups (app/neuron_tools.py's get_current_node_record,
+app/dream_journal_tools.py's list_recent_dreams) and tells Edin to use
+them when a user wants to add to or reference something that already
+exists rather than replace it or have her guess/invent what's already
+there. Closes a real gap the toolbox had until now: she could write to a
+body-map node but never read what was already saved on it, so "add more
+to that story" had no honest way to work without either overwriting the
+existing content or fabricating a merge. Everything else is unchanged
+from v8.
+
 ## v8 — notice and offer, instead of staying silent
 
 Direct response to a real gap a live test against actual Gemini surfaced:

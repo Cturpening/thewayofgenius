@@ -32,7 +32,9 @@ def test_the_whole_toolbox_is_registered():
     assert names == {
         "save_neuron_record",
         "log_neuron_practice",
+        "get_current_node_record",
         "log_dream_journal_entry",
+        "list_recent_dreams",
         "create_goal",
         "update_goal_progress",
         "list_goals",

@@ -108,6 +108,15 @@ NEURON_TOOL_DECLARATIONS = [
         ),
         "parameters": {"type": "object", "properties": {}},
     },
+    {
+        "name": "get_current_node_record",
+        "description": (
+            "Read whatever is already saved on the body-map node the user currently has open -- use this "
+            "before saving when the user wants to ADD to or build on an existing story/skill/goal rather "
+            "than replace it, or when you need to know what's actually there before referencing it."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -122,7 +131,7 @@ def make_tool_executor(db: Session, user_id: UUID, node_key: str | None):
     aggregator, which tries each domain's executor in turn."""
 
     def execute(name: str, args: dict) -> dict | None:
-        if name not in ("save_neuron_record", "log_neuron_practice"):
+        if name not in ("save_neuron_record", "log_neuron_practice", "get_current_node_record"):
             return None
 
         if not node_key:
@@ -134,6 +143,12 @@ def make_tool_executor(db: Session, user_id: UUID, node_key: str | None):
                 args = {**args, "progress_state": None}
             record = upsert_neuron_record(db, user_id, node_key, **args)
             return {"saved": True, "record": _record_to_dict(record)}
+
+        if name == "get_current_node_record":
+            record = db.query(NeuronRecord).filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key).first()
+            if record is None:
+                return {"exists": False}
+            return {"exists": True, "record": _record_to_dict(record)}
 
         record = log_neuron_practice(db, user_id, node_key)
         return {"logged": True, "record": _record_to_dict(record)}
