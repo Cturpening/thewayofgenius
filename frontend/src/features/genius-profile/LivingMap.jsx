@@ -123,12 +123,6 @@ function parseBodySelection(selected) {
 
 const SIGNALS_PER_SUB = 6;
 
-// Click-and-drag orbit (OrbitControls, below), not continuous mouse-look --
-// an earlier version rotated the scene on any mouse movement at all, which
-// fought the one thing people needed most: holding the view still to click
-// a node. A plain click selects, a deliberate drag orbits, and the two
-// don't compete. True 360 still works, it just takes an intentional drag.
-
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
   const coreRef = useRef();
@@ -249,45 +243,12 @@ function SymbolsRegion({ dreamEntries, selected, onSelect, palette }) {
   );
 }
 
-// Zooming into a system or substructure moves the *camera*, not the
-// content. An earlier version scaled the whole content group up to
-// simulate a zoom -- which also scaled every text label up with it,
-// producing giant overlapping labels that ate the screen and, worse,
-// shrank "empty space" to almost nothing, making it nearly impossible to
-// click your way back out. Dollying the real camera toward a target
-// avoids all of that: labels stay their normal on-screen size the way
-// real objects do when you walk closer to them. Once the camera settles
-// near its target, this stops touching it entirely so ordinary
-// drag/scroll/pan take back over immediately instead of fighting the user.
-function CameraDolly({ target, distance, controlsRef }) {
-  useFrame(() => {
-    const controls = controlsRef.current;
-    if (!controls) return;
-    const cam = controls.object;
-    const [tx, ty, tz] = target;
-    const dTargetX = tx - controls.target.x, dTargetY = ty - controls.target.y, dTargetZ = tz - controls.target.z;
-    const targetGap = Math.sqrt(dTargetX ** 2 + dTargetY ** 2 + dTargetZ ** 2);
-    const dir = cam.position.clone().sub(controls.target);
-    const curDist = dir.length() || 1;
-    const distGap = Math.abs(curDist - distance);
-    if (targetGap < 0.03 && distGap < 0.05) return;
-    controls.target.x += dTargetX * 0.08;
-    controls.target.y += dTargetY * 0.08;
-    controls.target.z += dTargetZ * 0.08;
-    dir.normalize();
-    const newDist = curDist + (distance - curDist) * 0.08;
-    cam.position.copy(controls.target).add(dir.multiplyScalar(newDist));
-    controls.update();
-  });
-  return null;
-}
-
 // The symbolic chakra-style points and the real physiological systems are
 // two full datasets on the same spine -- shown together they read as one
 // overcrowded map instead of two clear ones. bodyView picks which one is
 // actually on screen; the spine itself stays as a shared anchor either way.
 //
-// Within Systems view, drilling in is a real camera zoom (see CameraDolly)
+// Within Systems view, drilling in is a real camera zoom (see CameraRig)
 // that also hides every other system so it reads as "artwork inside of
 // artwork" -- one holographic layer at a time, Magic School Bus style --
 // instead of everything visible and crowded at once. Each system's first
@@ -416,31 +377,123 @@ function TeamRegion({ teamMembers, selected, onSelect, palette }) {
   );
 }
 
-function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView }) {
-  const controlsRef = useRef();
-  const { layer: selLayer, systemKey: openSystemKey, subKey: openSubKey } = parseBodySelection(selected);
+// Where the camera should be centered and how close, purely as a function
+// of whatever's currently selected -- clicking IS the only way to change
+// where you're looking. This used to only exist for the Body Systems
+// drill-down; now it covers every region, since with drag-orbit gone
+// entirely, auto-focus-on-click is the only way to actually get close to
+// anything in Architecture/Symbols/Team too. Precision varies on purpose:
+// Body Systems gets exact per-node targeting (it already had the layout
+// math for that); the other three regions focus on the whole region at a
+// distance that comfortably shows every node in it, which is honest given
+// duplicating their internal per-node layout math here isn't worth it for
+// what this is actually solving (a camera that goes somewhere on click,
+// not a hand-tuned close-up on every possible node).
+function computeFocus(selected, bodyView) {
+  const fallback = { target: [0, 0, 0], distance: 22 };
+  if (!selected) return fallback;
+  const [layer, rest] = selected.split(":");
+
+  if (["body-system", "body-sub", "body-signal"].includes(layer)) {
+    if (bodyView !== "systems") return { target: REGION_OFFSET.body, distance: 6 };
+    const { systemKey, subKey } = parseBodySelection(selected);
+    const openSystem = computeSystemPositions().find((s) => s.key === systemKey);
+    if (!openSystem) return { target: REGION_OFFSET.body, distance: 6 };
+    if (layer === "body-system") return { target: openSystem.position, distance: 6 };
+    const subs = openSystem.substructures || [];
+    const subIdx = subs.findIndex((x) => x.key === subKey);
+    if (subIdx < 0) return { target: openSystem.position, distance: 6 };
+    const subPos = spherePositions(openSystem.position, 1.1, subs.length)[subIdx];
+    return { target: subPos, distance: layer === "body-signal" ? 1.5 : 2.4 };
+  }
+  if (layer === "link") {
+    const [scope, aKey, bKey] = (rest || "").split("__");
+    if (scope === "body") {
+      const positions = computeSystemPositions();
+      const a = positions.find((s) => s.key === aKey), b = positions.find((s) => s.key === bKey);
+      if (a && b) return { target: [(a.position[0] + b.position[0]) / 2, (a.position[1] + b.position[1]) / 2, (a.position[2] + b.position[2]) / 2], distance: 7 };
+    }
+    return { target: REGION_OFFSET.architecture, distance: 6 };
+  }
+  if (layer === "region") {
+    if (rest === "architecture") return { target: REGION_OFFSET.architecture, distance: 6 };
+    if (rest === "team") return { target: REGION_OFFSET.team, distance: 6 };
+    return { target: REGION_OFFSET.body, distance: 6 };
+  }
+  if (layer === "architecture") return { target: REGION_OFFSET.architecture, distance: 6 };
+  if (layer === "symbols") return { target: REGION_OFFSET.symbols, distance: 6 };
+  if (layer === "team") return { target: REGION_OFFSET.team, distance: 6 };
+  if (layer === "body") return { target: REGION_OFFSET.body, distance: 6 };
+  return fallback;
+}
+
+// The whole camera, replacing what used to be OrbitControls' free
+// click-and-drag. That drag was the single biggest source of pain in this
+// map: any mouse movement at all could spin the view, and it actively
+// fought people who just wanted to hold still and click something. Now
+// OrbitControls only supplies a camera/target pair to read and write --
+// its own rotate/pan/zoom are all switched off -- and this owns the whole
+// picture instead:
+//   - target & distance: automatic, driven only by what's selected
+//     (computeFocus above). They animate toward a new focus once, then
+//     stop touching the camera at all once arrived, so they never fight
+//     a manual zoom button afterward.
+//   - yaw & pitch: 100% manual, buttons only, never move on their own.
+//     This is the piece that used to be mouse-drag and now literally
+//     cannot move unless a button is clicked.
+function CameraRig({ focusKey, focusTarget, focusDistance, cameraStateRef, controlsRef }) {
+  useFrame(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const cam = controls.object;
+    const st = cameraStateRef.current;
+
+    if (st.focusKey !== focusKey) {
+      st.focusKey = focusKey;
+      st.approaching = true;
+    }
+
+    if (st.approaching) {
+      const dTx = focusTarget[0] - st.target[0], dTy = focusTarget[1] - st.target[1], dTz = focusTarget[2] - st.target[2];
+      const targetGap = Math.sqrt(dTx * dTx + dTy * dTy + dTz * dTz);
+      const distGap = Math.abs(focusDistance - st.distance);
+      if (targetGap < 0.03 && distGap < 0.05) {
+        st.approaching = false;
+      } else {
+        st.target[0] += dTx * 0.08;
+        st.target[1] += dTy * 0.08;
+        st.target[2] += dTz * 0.08;
+        st.distance += (focusDistance - st.distance) * 0.08;
+      }
+    }
+
+    const cy = Math.cos(st.pitch), sy = Math.sin(st.pitch);
+    const cx = Math.cos(st.yaw), sx = Math.sin(st.yaw);
+    cam.position.set(
+      st.target[0] + cx * cy * st.distance,
+      st.target[1] + sy * st.distance,
+      st.target[2] + sx * cy * st.distance
+    );
+    controls.target.set(st.target[0], st.target[1], st.target[2]);
+    // Explicit, not left to controls.update() -- with rotate/pan/zoom all
+    // disabled, OrbitControls never runs its own interaction handlers, and
+    // this usage bypasses those entirely, so nothing can be assumed about
+    // whether update() still reorients the camera on its own in that case.
+    cam.lookAt(st.target[0], st.target[1], st.target[2]);
+    controls.update();
+  });
+  return null;
+}
+
+function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView, cameraStateRef, controlsRef }) {
+  const selLayer = selected ? selected.split(":")[0] : null;
   // Drilled into a specific body system -- everything else (other regions,
   // other systems) hides so the zoom reads as one clear holographic layer
   // instead of the zoomed-in system fighting for space with everything
   // else still on screen behind it.
   const bodyDrillActive = layers.body && bodyView === "systems" && ["body-system", "body-sub", "body-signal"].includes(selLayer);
-
-  let focusTarget = [0, 0, 0], focusDistance = 22;
-  if (bodyDrillActive) {
-    const openSystem = computeSystemPositions().find((s) => s.key === openSystemKey);
-    if (openSystem) {
-      focusTarget = openSystem.position;
-      focusDistance = 6;
-      if (selLayer === "body-sub" || selLayer === "body-signal") {
-        const subs = openSystem.substructures || [];
-        const subIdx = subs.findIndex((x) => x.key === openSubKey);
-        if (subIdx >= 0) {
-          focusTarget = spherePositions(openSystem.position, 1.1, subs.length)[subIdx];
-          focusDistance = selLayer === "body-signal" ? 1.5 : 2.4;
-        }
-      }
-    }
-  }
+  const { target: focusTarget, distance: focusDistance } = computeFocus(selected, bodyView);
+  const focusKey = `${bodyView}|${selected || ""}`;
 
   return (
     <>
@@ -464,15 +517,8 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
       {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
       {!bodyDrillActive && layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
 
-      {/* Only active in Body Systems view -- outside it the camera is
-          entirely the user's, exactly as before this feature existed.
-          Even at the plain Systems overview (nothing selected) it keeps
-          gently correcting pan/zoom drift back to a framing that shows
-          all 11 systems, which is what "couldn't find my way back" was
-          actually asking for -- orbiting alone never triggers it, since
-          rotation doesn't move the orbit target. */}
-      {bodyView === "systems" && <CameraDolly target={focusTarget} distance={focusDistance} controlsRef={controlsRef} />}
-      <OrbitControls ref={controlsRef} enableZoom enableRotate enablePan minDistance={1} maxDistance={40} />
+      <CameraRig focusKey={focusKey} focusTarget={focusTarget} focusDistance={focusDistance} cameraStateRef={cameraStateRef} controlsRef={controlsRef} />
+      <OrbitControls ref={controlsRef} enableRotate={false} enablePan={false} enableZoom={false} />
     </>
   );
 }
@@ -484,12 +530,38 @@ const LAYER_META = {
   team: { label: "Inner Team", color: COLORS.violet },
 };
 
+const DEFAULT_YAW = -0.5, DEFAULT_PITCH = 0.22;
+const YAW_STEP = 0.28, PITCH_STEP = 0.18, ZOOM_FACTOR = 0.82;
+
 export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
   const [layers, setLayers] = useState({ architecture: true, symbols: true, body: false, team: false });
   const [bodyView, setBodyView] = useState("symbolic"); // symbolic | systems -- one at a time, not both
   const [selected, setSelected] = useState(null);
   const [theme, setTheme] = useHologramTheme();
   const palette = HOLOGRAM_PALETTES[theme];
+
+  const controlsRef = useRef();
+  // Everything the camera needs, owned outside the Canvas so plain HTML
+  // buttons below the map can nudge it directly -- see CameraRig for how
+  // this gets turned into an actual camera position every frame.
+  const cameraStateRef = useRef({
+    yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH, distance: 22,
+    target: [0, 0, 0], focusKey: null, approaching: false,
+  });
+
+  const nudgeYaw = (dir) => { cameraStateRef.current.yaw += dir * YAW_STEP; };
+  const nudgePitch = (dir) => {
+    const next = cameraStateRef.current.pitch + dir * PITCH_STEP;
+    cameraStateRef.current.pitch = Math.max(-1.3, Math.min(1.3, next));
+  };
+  const nudgeZoom = (dir) => {
+    const next = cameraStateRef.current.distance * (dir > 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR);
+    cameraStateRef.current.distance = Math.max(1.2, Math.min(40, next));
+  };
+  const resetView = () => {
+    cameraStateRef.current.yaw = DEFAULT_YAW;
+    cameraStateRef.current.pitch = DEFAULT_PITCH;
+  };
 
   const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -719,10 +791,10 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
-        relation to it -- toggle any combination on. Drag to orbit all the way around, scroll to zoom.
-        Everything here is real content on tap: every node, every connecting line, even the big center
-        hub of each region opens its own box on the right. In Body Systems view, use the jump menu or
-        breadcrumb below the map to move between layers any time -- you're never stuck without a way back.
+        relation to it -- toggle any combination on. Nothing here is dragged: tap a point to select it and
+        the camera moves there on its own, then the turn/zoom buttons below the map are the only thing that
+        ever moves the view after that. Every node, every connecting line, even the big center hub of each
+        region opens its own box on the right.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -841,18 +913,33 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
       )}
 
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
-        <div style={{ width: "100%", maxWidth: 620, height: 480, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
-          <Canvas camera={{ position: [0, 5, 22], fov: 55 }} onPointerMissed={() => setSelected(null)}>
-            <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} bodyView={bodyView} />
-          </Canvas>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 620 }}>
+          <div style={{ height: 480, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
+            <Canvas camera={{ position: [0, 5, 22], fov: 55 }} onPointerMissed={() => setSelected(null)}>
+              <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} bodyView={bodyView} cameraStateRef={cameraStateRef} controlsRef={controlsRef} />
+            </Canvas>
+          </div>
+
+          {/* The whole camera, in six buttons. Nothing else moves the view --
+              no drag, no scroll-to-zoom, no hover. Click, and only click. */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", flexWrap: "wrap", background: COLORS.bgPanelAlt, borderRadius: 10, padding: "8px 10px" }}>
+            <button onClick={() => nudgeYaw(-1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>◄ Turn</button>
+            <button onClick={() => nudgePitch(1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>▲</button>
+            <button onClick={() => nudgePitch(-1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>▼</button>
+            <button onClick={() => nudgeYaw(1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>Turn ►</button>
+            <span style={{ width: 1, height: 20, background: COLORS.grid }} />
+            <button onClick={() => nudgeZoom(1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>+ Zoom in</button>
+            <button onClick={() => nudgeZoom(-1)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 13, cursor: "pointer" }}>− Zoom out</button>
+            <span style={{ width: 1, height: 20, background: COLORS.grid }} />
+            <button onClick={resetView} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.gold}`, background: `${COLORS.gold}18`, color: COLORS.gold, fontSize: 13, cursor: "pointer" }}>Reset View</button>
+          </div>
         </div>
 
         <div style={{ flex: "1 1 240px", minWidth: 240, background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px" }}>
           {!panel ? (
             <div style={{ fontSize: 12.5, color: COLORS.inkDim, lineHeight: 1.6 }}>
-              Tap any point in the map to see the real story behind it. Pull back (scroll out) to see all
-              your active regions floating together around the Body at the center; zoom into one to
-              explore it closely.
+              Tap any point in the map to see the real story behind it -- the camera will move there for
+              you. Use Zoom out or Reset View to see all your active regions again.
             </div>
           ) : panel}
         </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import GeniusProfileMap from "./GeniusProfileMap";
 import SymbolConstellation from "./SymbolConstellation";
@@ -6,6 +6,10 @@ import BodySystemsMapView from "../library/BodySystemsMapView";
 import DreamArcView from "../library/DreamArcView";
 import InnerTeamView from "../dojo/InnerTeamView";
 import { INITIAL_TEAM_MEMBERS } from "../dojo/data/teamMembers";
+
+// Three.js pulls in a real chunk of weight -- lazy-loaded so it only
+// downloads when someone actually switches into Hologram mode.
+const LivingMap = lazy(() => import("./LivingMap"));
 
 // "Body" and "Body Systems" used to be two separate tabs -- one showing
 // invented illustrative dream-body symbols, the other real physiology.
@@ -21,19 +25,20 @@ const FLAT_LENSES = {
   team: "Inner Team",
 };
 
-// Flat only -- no 3D/drag-to-orbit mode here anymore. That mode (LivingMap,
-// still in the repo, just not wired in here) required dragging the mouse
-// to look around, and kept fighting the person actually trying to use it.
-// Every piece of content that used to live only inside that 3D map (most
-// importantly Body Systems -- see BodySystemsMapView) now has a flat,
-// click-only home instead, so there's no reason to route anyone through
-// the 3D experience at all. If it's ever wanted back, it's one import away.
+// Flat is the default and the safe fallback -- click-only throughout, no
+// exceptions. Hologram (LivingMap) is back after being pulled entirely:
+// its old drag-to-orbit camera is gone, replaced with the same click-only
+// philosophy -- tap something and the camera moves there on its own, then
+// six on-screen buttons (turn/zoom/reset) are the *only* thing that ever
+// moves the view afterward. See LivingMap's own CameraRig for how that
+// works.
 export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEntries = [] }) {
   const [tab, setTab] = useState("map");
+  const [mode, setMode] = useState("flat"); // flat | hologram
   const [flatLens, setFlatLens] = useState("weave");
   // Lifted up (not owned by InnerTeamView) so the same real team list
-  // would show up anywhere else it's needed later. Still not persisted to
-  // a backend -- a real gap, not fixed here.
+  // shows up in both Flat's Inner Team tab and the Hologram's Inner Team
+  // region. Still not persisted to a backend -- a real gap, not fixed here.
   const [teamMembers, setTeamMembers] = useState(INITIAL_TEAM_MEMBERS);
 
   return (
@@ -58,36 +63,66 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
 
       {tab === "map" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {Object.keys(FLAT_LENSES).map((l) => (
-              <button
-                key={l}
-                onClick={() => setFlatLens(l)}
-                style={{
-                  padding: "6px 13px", borderRadius: 8,
-                  border: `1px solid ${flatLens === l ? COLORS.gold : COLORS.grid}`,
-                  background: flatLens === l ? `${COLORS.gold}22` : "transparent",
-                  color: flatLens === l ? COLORS.gold : COLORS.inkDim,
-                  fontSize: 11.5, cursor: "pointer",
-                }}
-              >
-                {FLAT_LENSES[l]}
-              </button>
-            ))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {["flat", "hologram"].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  style={{
+                    padding: "6px 16px", borderRadius: 999,
+                    border: `1px solid ${mode === m ? COLORS.teal : COLORS.grid}`,
+                    background: mode === m ? `${COLORS.teal}22` : "transparent",
+                    color: mode === m ? COLORS.teal : COLORS.inkDim,
+                    fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  {m === "flat" ? "Flat" : "Hologram"}
+                </button>
+              ))}
+            </div>
+            {mode === "flat" && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {Object.keys(FLAT_LENSES).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setFlatLens(l)}
+                    style={{
+                      padding: "6px 13px", borderRadius: 8,
+                      border: `1px solid ${flatLens === l ? COLORS.gold : COLORS.grid}`,
+                      background: flatLens === l ? `${COLORS.gold}22` : "transparent",
+                      color: flatLens === l ? COLORS.gold : COLORS.inkDim,
+                      fontSize: 11.5, cursor: "pointer",
+                    }}
+                  >
+                    {FLAT_LENSES[l]}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {flatLens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
-          {flatLens === "symbols" && <SymbolConstellation dreamEntries={dreamEntries} />}
-          {flatLens === "body" && <BodySystemsMapView />}
-          {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
+          {mode === "flat" ? (
+            <>
+              {flatLens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
+              {flatLens === "symbols" && <SymbolConstellation dreamEntries={dreamEntries} />}
+              {flatLens === "body" && <BodySystemsMapView />}
+              {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
+            </>
+          ) : (
+            <Suspense fallback={<div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Loading the map…</div>}>
+              <LivingMap dreamEntries={dreamEntries} teamMembers={teamMembers} />
+            </Suspense>
+          )}
         </div>
       )}
 
       {tab === "arc" && <DreamArcView />}
 
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        One lens at a time, click-only throughout -- nothing here needs dragging or a held mouse
-        movement. Symbol meanings themselves live in the Symbolic Library tab.
+        Flat is calm and click-only, one lens at a time. Hologram is the same real data as one living 3D
+        space -- also click-only now, with on-screen turn/zoom buttons instead of any dragging. Symbol
+        meanings themselves live in the Symbolic Library tab.
       </div>
     </div>
   );
