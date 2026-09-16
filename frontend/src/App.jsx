@@ -12,7 +12,6 @@ import GeneticsSubconsciousView from "./features/planned/GeneticsSubconsciousVie
 import { fetchDreamEntries } from "./features/dream-journal/api";
 import GoalsCalendarView from "./features/goals-calendar/GoalsCalendarView";
 import SymbolicLibraryView from "./features/library/SymbolicLibraryView";
-import { CONSTITUTION_SCENARIOS } from "./features/genius-constitution/data/constitutionData";
 import PracticeDojoView from "./features/dojo/PracticeDojoView";
 import GeniusProfileHub from "./features/genius-profile/GeniusProfileHub";
 import FutureTechView from "./features/planned/FutureTechView";
@@ -34,8 +33,6 @@ export default function App() {
   const [greeting] = useState(() => EDIN_GREETINGS[Math.floor(Math.random() * EDIN_GREETINGS.length)]);
   const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionAnswers, setConstitutionAnswers] = useState([]);
-  const [newUserMode, setNewUserMode] = useState(true);
-  const [simulatedDay, setSimulatedDay] = useState(1);
   const [isCoach, setIsCoach] = useState(false);
 
   useEffect(() => {
@@ -51,18 +48,6 @@ export default function App() {
     // for almost every account, not an error.
     checkIsCoach().then(setIsCoach);
   }, [session]);
-
-  const constitutionTaken = constitutionAnswers.length >= CONSTITUTION_SCENARIOS.length;
-  const TAB_UNLOCK_DAY = { dojo: 1, edin: 1, map: 1, goals: 8, library: 22, future: 30 };
-  const isLocked = (tabKey) => {
-    if (!newUserMode) return false;
-    if (!constitutionTaken) return tabKey !== "dojo";
-    return simulatedDay < TAB_UNLOCK_DAY[tabKey];
-  };
-
-  useEffect(() => {
-    if (isLocked(view)) setView("dojo");
-  }, [newUserMode, constitutionTaken, simulatedDay]);
 
   const states = mode === "workload" ? WORKLOAD_STATES : SLEEP_STATES;
   const activeKey = mode === "workload" ? workloadKey : sleepKey;
@@ -144,76 +129,26 @@ export default function App() {
               Log out
             </button>
           </div>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap",
-            marginBottom: 4, padding: "10px 14px", borderRadius: 10, background: COLORS.bgPanelAlt,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <button
-                onClick={() => setNewUserMode(!newUserMode)}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {["map", "dojo", "goals", "library", "edin", "future"].map((v) => (
+              <motion.button
+                key={v}
+                onClick={() => setView(v)}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
                 style={{
-                  padding: "6px 14px", borderRadius: 999, border: `1px solid ${newUserMode ? COLORS.gold : COLORS.grid}`,
-                  background: newUserMode ? `${COLORS.gold}22` : "transparent",
-                  color: newUserMode ? COLORS.gold : COLORS.inkDim, fontSize: 11.5, cursor: "pointer",
+                  padding: "9px 18px",
+                  borderRadius: 10,
+                  border: `1px solid ${view === v ? COLORS.coral : COLORS.grid}`,
+                  background: view === v ? `${COLORS.coral}1a` : "transparent",
+                  color: view === v ? COLORS.coral : COLORS.inkDim,
+                  fontSize: 13,
+                  cursor: "pointer",
                 }}
               >
-                {newUserMode ? "🌱 New User Mode" : "🔓 Full Access (Demo)"}
-              </button>
-              {newUserMode && (
-                <span style={{ fontSize: 11, color: COLORS.inkDim }}>
-                  {!constitutionTaken
-                    ? "Start with the Constitution — everything else unlocks from there."
-                    : `Day ${simulatedDay} of their journey`}
-                </span>
-              )}
-            </div>
-            {newUserMode && constitutionTaken && (
-              <div style={{ display: "flex", gap: 6 }}>
-                {[1, 8, 22, 30].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setSimulatedDay(d)}
-                    style={{
-                      padding: "5px 10px", borderRadius: 6, fontSize: 10.5, cursor: "pointer",
-                      border: `1px solid ${simulatedDay === d ? COLORS.teal : COLORS.grid}`,
-                      background: simulatedDay === d ? `${COLORS.teal}22` : "transparent",
-                      color: simulatedDay === d ? COLORS.teal : COLORS.inkDim,
-                    }}
-                  >
-                    Day {d}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["map", "dojo", "goals", "library", "edin", "future"].map((v) => {
-              const locked = isLocked(v);
-              return (
-                <motion.button
-                  key={v}
-                  onClick={() => !locked && setView(v)}
-                  disabled={locked}
-                  title={locked ? `Unlocks Day ${TAB_UNLOCK_DAY[v]}` : undefined}
-                  whileHover={locked ? {} : { scale: 1.04 }}
-                  whileTap={locked ? {} : { scale: 0.96 }}
-                  style={{
-                    padding: "9px 18px",
-                    borderRadius: 10,
-                    border: `1px solid ${locked ? COLORS.grid : view === v ? COLORS.coral : COLORS.grid}`,
-                    background: locked ? "transparent" : view === v ? `${COLORS.coral}1a` : "transparent",
-                    color: locked ? COLORS.grid : view === v ? COLORS.coral : COLORS.inkDim,
-                    fontSize: 13,
-                    cursor: locked ? "default" : "pointer",
-                    opacity: locked ? 0.55 : 1,
-                  }}
-                >
-                  {locked && "🔒 "}
-                  {v === "map" ? "Genius Profile" : v === "dojo" ? "Edin's Psyche Dojo" : v === "goals" ? "Dream Journal & Calendar" : v === "library" ? "Symbolic Library" : v === "edin" ? "Edin" : "The Edin Ecosystem"}
-                </motion.button>
-              );
-            })}
+                {v === "map" ? "Genius Profile" : v === "dojo" ? "Edin's Psyche Dojo" : v === "goals" ? "Dream Journal & Calendar" : v === "library" ? "Symbolic Library" : v === "edin" ? "Edin" : "The Edin Ecosystem"}
+              </motion.button>
+            ))}
           </div>
 
           {["genetics", "biofeedback", "microbiome", "other"].includes(view) && (

@@ -37,33 +37,34 @@ const REGION_LABEL = {
   team: "Inner Team",
 };
 
-// Real mouse-look, not a capped tilt. The earlier version mapped mouse
-// *position* to a target angle (roughly +/-20 degrees) -- bounded by
-// definition, since your cursor can only reach the edge of the screen, so
-// you could never actually turn far enough to see the satellite regions
-// spread out; they stayed compressed near center, reading as "everything
-// on top of itself." This instead accumulates mouse *movement* each frame
-// (like a game's mouse-look), so sustained motion keeps turning the scene
-// all the way around -- true 360 on yaw, clamped only on pitch so you
-// can't flip upside down. Runs continuously (not just while dragging),
-// and OrbitControls' own rotate is turned off below so the two don't
-// fight over the camera.
-function MouseParallax({ children }) {
-  const group = useRef();
-  const last = useRef(null);
-  useFrame((state) => {
-    if (!group.current) return;
-    const { x, y } = state.pointer;
-    if (last.current) {
-      const dx = x - last.current.x;
-      const dy = y - last.current.y;
-      group.current.rotation.y += dx * 1.6;
-      group.current.rotation.x = Math.max(-1.1, Math.min(1.1, group.current.rotation.x - dy * 0.9));
-    }
-    last.current = { x, y };
-  });
-  return <group ref={group}>{children}</group>;
-}
+// Real (if illustrative) physiological relationships between systems --
+// not every system touches every other one, but these are the ones a
+// coach would actually reach for: HPA-axis, gas exchange, filtration,
+// structural, defensive. Rendered in gold as the map's overview network;
+// hidden once you drill into a single system since only that system
+// matters at that point.
+const SYSTEM_LINKS = [
+  ["nervous", "endocrine"],
+  ["nervous", "muscular"],
+  ["cardiovascular", "respiratory"],
+  ["cardiovascular", "lymphatic"],
+  ["digestive", "lymphatic"],
+  ["digestive", "urinary"],
+  ["endocrine", "reproductive"],
+  ["integumentary", "lymphatic"],
+  ["skeletal", "muscular"],
+  ["skeletal", "endocrine"],
+  ["urinary", "cardiovascular"],
+];
+
+// Rotating the scene from raw mouse *movement* (regardless of clicking)
+// turned out to fight the exact thing people needed to do most: hold the
+// view still and click through nodes -- moving toward a node to click it
+// also spun the scene out from under the cursor. Standard click-and-drag
+// orbit (OrbitControls, below) doesn't have that problem: a plain click
+// selects a node, a deliberate drag orbits, and the two don't compete.
+// True 360 still works, it just takes an intentional drag instead of any
+// mouse movement at all.
 
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
@@ -177,28 +178,54 @@ function bodyHeightFromFrac(frac) {
   return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
 }
 
-// A flat ring of points around a center -- used both for the 8 systems
-// around the spine and for the cell/neuron drill-down rings below.
-function ringPositions(center, radius, count) {
+// A small sphere-shell cluster of points around a center, reusing the same
+// fibonacci distribution the Architecture/Symbols regions use -- reads as
+// a cell cluster or a neuron cluster instead of a flat ring, closer to how
+// these things actually sit in three dimensions.
+function spherePositions(center, radius, count) {
   return Array.from({ length: count }, (_, i) => {
-    const angle = (i / count) * Math.PI * 2;
-    return [center[0] + radius * Math.cos(angle), center[1], center[2] + radius * Math.sin(angle)];
+    const p = fibonacciSpherePosition(i, count, radius);
+    return [center[0] + p[0], center[1] + p[1], center[2] + p[2]];
   });
 }
 
 const CELLS_PER_SYSTEM = 6;
-const NEURONS_PER_CELL = 5;
+const NEURONS_PER_CELL = 8;
+
+// Drilling into a system moves and scales the whole Body content so the
+// thing you tapped ends up centered and larger -- an actual zoom, not just
+// new points appearing in place. Lerped each frame so it reads as motion
+// ("zooms into a clearer layer") rather than a jump cut.
+function FocusGroup({ target, scale, children }) {
+  const ref = useRef();
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    const t = Math.min(1, delta * 4);
+    const [tx, ty, tz] = target || [0, 0, 0];
+    ref.current.position.x += (-tx - ref.current.position.x) * t;
+    ref.current.position.y += (-ty - ref.current.position.y) * t;
+    ref.current.position.z += (-tz - ref.current.position.z) * t;
+    const s = ref.current.scale;
+    s.x += (scale - s.x) * t;
+    s.y += (scale - s.y) * t;
+    s.z += (scale - s.z) * t;
+  });
+  return <group ref={ref}>{children}</group>;
+}
 
 // The symbolic chakra-style points and the real physiological systems are
 // two full datasets on the same spine -- shown together they read as one
 // overcrowded map instead of two clear ones. bodyView picks which one is
 // actually on screen; the spine itself stays as a shared anchor either way.
 //
-// Within Systems view, "down to cells and neurons" is real drill-down, not
-// a denser default: a system's cells only appear once you select that
-// system, and a cell's neurons only appear once you select that cell --
-// same progressive-disclosure idea as labels-on-select, just one level
-// deeper. Ids: body-system:<key>, body-cell:<systemKey>__<i>,
+// Within Systems view, "down to cells and neurons" is a real zoom, not a
+// denser default: tap a system and the whole Body content re-centers and
+// scales up on it (FocusGroup) while every other system disappears --
+// "artwork inside of artwork," one holographic layer at a time, Magic
+// School Bus style, instead of everything visible and crowded at once.
+// Tap a cell inside it and the same thing happens one layer deeper, into
+// a small sphere-cluster of neurons. Tap empty space to zoom back out.
+// Ids: body-system:<key>, body-cell:<systemKey>__<i>,
 // body-neuron:<systemKey>__<i>__<j> ("__" separates parts within a layer
 // so the top-level "layer:key" split on ":" still works).
 function BodyRegion({ selected, onSelect, palette, bodyView }) {
@@ -218,52 +245,83 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
   const [selLayer, selRest] = selected ? selected.split(":") : [null, null];
   const openSystemKey = ["body-system", "body-cell", "body-neuron"].includes(selLayer) ? selRest.split("__")[0] : null;
   const openCellId = selLayer === "body-cell" || selLayer === "body-neuron" ? selRest.split("__").slice(0, 2).join("__") : null;
+  const openSystem = systemPositions.find((s) => s.key === openSystemKey);
+
+  let focusTarget = null, focusScale = 1;
+  if (openSystem) {
+    if (selLayer === "body-cell" || selLayer === "body-neuron") {
+      const cellIdx = parseInt(openCellId.split("__")[1], 10);
+      focusTarget = spherePositions(openSystem.position, 1.1, CELLS_PER_SYSTEM)[cellIdx];
+      focusScale = 3.4;
+    } else {
+      focusTarget = openSystem.position;
+      focusScale = 1.9;
+    }
+  }
 
   return (
     <group position={offset}>
-      {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
-      <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
-      <mesh position={[0, SPINE_TOP + 0.2, 0]}>
-        <sphereGeometry args={[0.35, 12, 12]} />
-        <meshBasicMaterial color={COLORS.grid} wireframe transparent opacity={0.5} />
-      </mesh>
+      {!openSystemKey && (
+        <>
+          {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
+          <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
+          <mesh position={[0, SPINE_TOP + 0.2, 0]}>
+            <sphereGeometry args={[0.35, 12, 12]} />
+            <meshBasicMaterial color={COLORS.grid} wireframe transparent opacity={0.5} />
+          </mesh>
+        </>
+      )}
 
       {bodyView === "symbolic" && BODY_SYMBOLS.map((s) => (
         <MapNode key={s.key} id={`body:${s.key}`} label={s.label} color={s.color} position={[0, symbolY(s.cy), 0]} pulsing isSelected={selected === `body:${s.key}`} onSelect={onSelect} palette={palette} />
       ))}
 
-      {bodyView === "systems" && systemPositions.map((s) => {
-        const isOpen = openSystemKey === s.key;
-        const cellPositions = isOpen ? ringPositions(s.position, 1.1, CELLS_PER_SYSTEM) : null;
-        return (
-          <group key={s.key}>
-            <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
-            <MapNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
+      {bodyView === "systems" && (
+        <FocusGroup target={focusTarget} scale={focusScale}>
+          {!openSystemKey && SYSTEM_LINKS.map(([aKey, bKey], i) => {
+            const a = systemPositions.find((s) => s.key === aKey);
+            const b = systemPositions.find((s) => s.key === bKey);
+            if (!a || !b) return null;
+            return <Line key={i} points={[a.position, b.position]} color={COLORS.gold} transparent opacity={0.45} lineWidth={1} dashed dashSize={0.12} gapSize={0.08} />;
+          })}
 
-            {isOpen && cellPositions.map((pos, i) => {
-              const cellId = `body-cell:${s.key}__${i}`;
-              const isCellOpen = openCellId === `${s.key}__${i}`;
-              const neuronPositions = isCellOpen ? ringPositions(pos, 0.55, NEURONS_PER_CELL) : null;
-              return (
-                <group key={cellId}>
-                  <Line points={[s.position, pos]} color={s.color} transparent opacity={0.35} lineWidth={0.6} />
-                  <MapNode id={cellId} label={`Cell ${i + 1}`} color={s.color} size={0.5} position={pos} pulsing isSelected={selected === cellId} onSelect={onSelect} palette={palette} />
+          {systemPositions.filter((s) => !openSystemKey || s.key === openSystemKey).map((s) => {
+            const isOpen = openSystemKey === s.key;
+            const cellPositions = isOpen ? spherePositions(s.position, 1.1, CELLS_PER_SYSTEM) : null;
+            return (
+              <group key={s.key}>
+                {!openSystemKey && <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />}
+                <MapNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
 
-                  {isCellOpen && neuronPositions.map((npos, j) => {
-                    const neuronId = `body-neuron:${s.key}__${i}__${j}`;
-                    return (
-                      <group key={neuronId}>
-                        <Line points={[pos, npos]} color={s.color} transparent opacity={0.4} lineWidth={0.5} />
-                        <MapNode id={neuronId} label={`Neuron ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === neuronId} onSelect={onSelect} palette={palette} />
-                      </group>
-                    );
-                  })}
-                </group>
-              );
-            })}
-          </group>
-        );
-      })}
+                {isOpen && cellPositions.map((pos, i) => {
+                  const cellId = `body-cell:${s.key}__${i}`;
+                  const isCellOpen = openCellId === `${s.key}__${i}`;
+                  const neuronPositions = isCellOpen ? spherePositions(pos, 0.6, NEURONS_PER_CELL) : null;
+                  return (
+                    <group key={cellId}>
+                      <Line points={[s.position, pos]} color={s.color} transparent opacity={0.35} lineWidth={0.6} />
+                      <MapNode id={cellId} label={`Cell ${i + 1}`} color={s.color} size={0.5} position={pos} pulsing isSelected={selected === cellId} onSelect={onSelect} palette={palette} />
+
+                      {isCellOpen && neuronPositions.map((npos, j) => {
+                        const neuronId = `body-neuron:${s.key}__${i}__${j}`;
+                        const prev = neuronPositions[(j + NEURONS_PER_CELL - 1) % NEURONS_PER_CELL];
+                        return (
+                          <group key={neuronId}>
+                            <Line points={[pos, npos]} color={s.color} transparent opacity={0.35} lineWidth={0.5} />
+                            {/* synapse-style cross-links between neighboring neurons -- brain-cluster look, not a flat ring */}
+                            <Line points={[npos, prev]} color={s.color} transparent opacity={0.2} lineWidth={0.4} />
+                            <MapNode id={neuronId} label={`Neuron ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === neuronId} onSelect={onSelect} palette={palette} />
+                          </group>
+                        );
+                      })}
+                    </group>
+                  );
+                })}
+              </group>
+            );
+          })}
+        </FocusGroup>
+      )}
     </group>
   );
 }
@@ -302,6 +360,13 @@ function TeamRegion({ teamMembers, selected, onSelect, palette }) {
 }
 
 function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView }) {
+  const selLayer = selected ? selected.split(":")[0] : null;
+  // Drilled into a specific body system -- everything else (other regions,
+  // other systems) hides so the zoom reads as one clear holographic layer
+  // instead of the zoomed-in system fighting for space with everything
+  // else still on screen behind it.
+  const bodyDrillActive = layers.body && bodyView === "systems" && ["body-system", "body-cell", "body-neuron"].includes(selLayer);
+
   return (
     <>
       <color attach="background" args={[palette.background]} />
@@ -314,19 +379,17 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
         </>
       )}
 
-      <MouseParallax>
-        {layers.architecture && <RegionLabel offset={REGION_OFFSET.architecture} text={REGION_LABEL.architecture} palette={palette} />}
-        {layers.symbols && dreamEntries.length > 0 && <RegionLabel offset={REGION_OFFSET.symbols} text={REGION_LABEL.symbols} palette={palette} />}
-        {layers.body && <RegionLabel offset={REGION_OFFSET.body} text={REGION_LABEL.body} palette={palette} />}
-        {layers.team && teamMembers.length > 0 && <RegionLabel offset={REGION_OFFSET.team} text={REGION_LABEL.team} palette={palette} />}
+      {!bodyDrillActive && layers.architecture && <RegionLabel offset={REGION_OFFSET.architecture} text={REGION_LABEL.architecture} palette={palette} />}
+      {!bodyDrillActive && layers.symbols && dreamEntries.length > 0 && <RegionLabel offset={REGION_OFFSET.symbols} text={REGION_LABEL.symbols} palette={palette} />}
+      {layers.body && !bodyDrillActive && <RegionLabel offset={REGION_OFFSET.body} text={REGION_LABEL.body} palette={palette} />}
+      {!bodyDrillActive && layers.team && teamMembers.length > 0 && <RegionLabel offset={REGION_OFFSET.team} text={REGION_LABEL.team} palette={palette} />}
 
-        {layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
-        {layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
-        {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
-        {layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
-      </MouseParallax>
+      {!bodyDrillActive && layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
+      {!bodyDrillActive && layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
+      {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
+      {!bodyDrillActive && layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
 
-      <OrbitControls enableZoom enableRotate={false} enablePan={false} minDistance={4} maxDistance={40} />
+      <OrbitControls enableZoom enableRotate enablePan minDistance={2} maxDistance={40} />
     </>
   );
 }
@@ -481,11 +544,10 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
-        relation to it -- toggle any combination on. Move your mouse to turn all the way around, no
-        clicking required -- keep moving it the same direction and it keeps turning, so the regions
-        actually spread out instead of sitting on top of each other. Scroll to zoom. In Body Systems view,
-        tap a system to open its cells, then tap a cell to open its neurons -- same real system at three
-        depths, not three separate things.
+        relation to it -- toggle any combination on. Drag to orbit all the way around, scroll to zoom, tap
+        a point to select it -- a plain click won't spin the view out from under you. In Body Systems view,
+        gold lines show how the systems actually relate; tap one to zoom into it (everything else clears
+        away), tap a cell inside it to zoom in again to its neurons. Tap empty space to zoom back out.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
