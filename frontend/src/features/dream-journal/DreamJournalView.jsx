@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import SpeakButton from "../../components/common/SpeakButton";
@@ -270,13 +271,15 @@ export default function DreamJournalView({ entries, setEntries }) {
           style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
         />
         <div style={{ display: "flex", gap: 8 }}>
-          <button
+          <motion.button
             onClick={saveEntry}
             disabled={saving}
+            whileHover={saving ? {} : { scale: 1.04 }}
+            whileTap={saving ? {} : { scale: 0.95 }}
             style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
           >
             {saving ? "Saving..." : "Save Entry"}
-          </button>
+          </motion.button>
         </div>
       </div>
       )}
@@ -301,8 +304,17 @@ export default function DreamJournalView({ entries, setEntries }) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <AnimatePresence>
         {visibleEntries.map((entry) => (
-          <div key={entry.id} style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "16px 18px" }}>
+          <motion.div
+            key={entry.id}
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "16px 18px" }}
+          >
             {editingId === entry.id ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <input
@@ -327,19 +339,23 @@ export default function DreamJournalView({ entries, setEntries }) {
                   style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none" }}
                 />
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button
+                  <motion.button
                     onClick={saveEntry}
                     disabled={saving}
+                    whileHover={saving ? {} : { scale: 1.04 }}
+                    whileTap={saving ? {} : { scale: 0.95 }}
                     style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: COLORS.violet, color: "#FDFEFC", fontSize: 13, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}
                   >
                     {saving ? "Saving..." : "Save Changes"}
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
                     onClick={resetComposer}
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.95 }}
                     style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 12.5, cursor: "pointer" }}
                   >
                     Cancel
-                  </button>
+                  </motion.button>
                 </div>
               </div>
             ) : (
@@ -351,18 +367,22 @@ export default function DreamJournalView({ entries, setEntries }) {
               </div>
               <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                 <SpeakButton text={`${entry.title}. ${entry.lines.map((l) => l.text).join(" ")} ${entry.edinNote}`} small />
-                <button
+                <motion.button
                   onClick={() => startEdit(entry)}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.92 }}
                   style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, cursor: "pointer" }}
                 >
                   Edit
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   onClick={() => deleteEntry(entry.id)}
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.92 }}
                   style={{ fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
                 >
                   Delete
-                </button>
+                </motion.button>
               </div>
             </div>
 
@@ -396,16 +416,18 @@ export default function DreamJournalView({ entries, setEntries }) {
             </div>
             </>
             )}
-          </div>
+          </motion.div>
         ))}
+        </AnimatePresence>
         {visibleEntries.length === 0 && (
           <div style={{ fontSize: 12, color: COLORS.inkDim, fontStyle: "italic" }}>No entries match that tag yet.</div>
         )}
       </div>
 
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        Illustrative reflections, not a live model — but tag categories (recall-blocker, waking-activation,
-        integration-milestone) are real, from the Beta Client Workflow Protocol, and the door/gut/chest
+        Edin's note on each entry comes from a real Gemini reflection, grounded in your actual entry and
+        tags — not a canned line. Tag categories (recall-blocker, waking-activation, integration-milestone,
+        biofeedback-signal) are real, from the Beta Client Workflow Protocol, and the door/gut/chest
         symbols cross-reference the same ones in the Symbol Body Map.
       </div>
     </div>
