@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import GeniusProfileMap from "./GeniusProfileMap";
+import SymbolConstellation from "./SymbolConstellation";
 import SymbolBodyMapView from "../library/SymbolBodyMapView";
 import DreamArcView from "../library/DreamArcView";
 import InnerTeamView from "../dojo/InnerTeamView";
 
-export default function GeniusProfileHub({ setView, constitutionAnswers }) {
+export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEntries = [] }) {
   const [lens, setLens] = useState("weave");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        {["weave", "body", "arc", "team"].map((l) => (
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {["weave", "constellation", "body", "arc", "team"].map((l) => (
           <button
             key={l}
             onClick={() => setLens(l)}
@@ -22,17 +23,19 @@ export default function GeniusProfileHub({ setView, constitutionAnswers }) {
               fontSize: 12, cursor: "pointer",
             }}
           >
-            {l === "weave" ? "Weave View" : l === "body" ? "Body View" : l === "arc" ? "Arc View" : "Inner Team"}
+            {l === "weave" ? "Weave View" : l === "constellation" ? "Your Constellation" : l === "body" ? "Body View" : l === "arc" ? "Arc View" : "Inner Team"}
           </button>
         ))}
       </div>
       {lens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
+      {lens === "constellation" && <SymbolConstellation dreamEntries={dreamEntries} />}
       {lens === "body" && <SymbolBodyMapView />}
       {lens === "arc" && <DreamArcView />}
       {lens === "team" && <InnerTeamView />}
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        Same Genius Profile, four lenses — thread-by-thread, body-by-location, arc-by-time, and now your
-        own Inner Team. Symbol meanings themselves live in the Symbolic Library tab.
+        Same Genius Profile, five lenses — thread-by-thread, your own real symbol constellation,
+        body-by-location, arc-by-time, and your Inner Team. Symbol meanings themselves live in the
+        Symbolic Library tab.
       </div>
     </div>
   );

@@ -259,7 +259,9 @@ export default function App() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
+            {view === "map" && (
+              <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} dreamEntries={dreamEntries} />
+            )}
             {view === "dojo" && (
               <PracticeDojoView
                 constitutionAnswers={constitutionAnswers}
