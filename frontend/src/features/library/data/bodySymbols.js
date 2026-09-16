@@ -1,5 +1,10 @@
 import { COLORS } from "../../../theme/tokens";
 
+// relatedSystem links each illustrative symbol to the real BODY_SYSTEMS
+// key it actually sits nearest, anatomically -- the bridge that lets the
+// merged Body view show a symbol's story and its system's real physiology
+// in the same box. Not every system has a symbol pointing to it yet; that's
+// honest (these 5 are all that exist), not a gap to paper over.
 export const BODY_SYMBOLS = [
   {
     key: "crown", label: "Crown", cx: 150, cy: 40, symbol: "A bright doorway opening upward",
@@ -7,6 +12,7 @@ export const BODY_SYMBOLS = [
     tone: "Awe, quiet expansion",
     bioNote: "Shows up on nights following real theta-heavy Metacognitive Training sessions — the body marking where the practice 'landed.'",
     goal: "Fall asleep without racing thoughts",
+    relatedSystem: "nervous",
   },
   {
     key: "throat", label: "Throat", cx: 150, cy: 95, symbol: "A knot of unspoken words",
@@ -14,6 +20,7 @@ export const BODY_SYMBOLS = [
     tone: "Tightness, mild frustration",
     bioNote: "Recurs before high-stakes communication — the subconscious flagging something not yet said in waking life.",
     goal: "Ship the Q3 proposal",
+    relatedSystem: "endocrine",
   },
   {
     key: "chest", label: "Chest / Heart", cx: 150, cy: 140, symbol: "The locked door",
@@ -21,6 +28,7 @@ export const BODY_SYMBOLS = [
     tone: "Apprehension, curiosity",
     bioNote: "The same symbol already tracked in the Biofeedback Lab — appears here because it showed up as a body sensation, not just an image.",
     goal: "Notice the locked-door symbol before it recurs",
+    relatedSystem: "cardiovascular",
   },
   {
     key: "solar", label: "Solar Plexus", cx: 150, cy: 185, symbol: "A coiled spring",
@@ -28,6 +36,7 @@ export const BODY_SYMBOLS = [
     tone: "Anticipation, readiness",
     bioNote: "Tends to show up the night before a real deadline — a somatic rehearsal of pressure.",
     goal: "Ship the Q3 proposal",
+    relatedSystem: "endocrine",
   },
   {
     key: "gut", label: "Abdomen / Gut", cx: 150, cy: 225, symbol: "Roots pulling downward",
@@ -35,5 +44,6 @@ export const BODY_SYMBOLS = [
     tone: "Heaviness, grounding",
     bioNote: "Real field match: gut_brain_coherence and gi_symptom_score (Modality 4) — this is where that data would actually attach.",
     goal: "Reduce gut tension before big meetings",
+    relatedSystem: "digestive",
   },
 ];

@@ -2,17 +2,22 @@ import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import GeniusProfileMap from "./GeniusProfileMap";
 import SymbolConstellation from "./SymbolConstellation";
-import SymbolBodyMapView from "../library/SymbolBodyMapView";
 import BodySystemsMapView from "../library/BodySystemsMapView";
 import DreamArcView from "../library/DreamArcView";
 import InnerTeamView from "../dojo/InnerTeamView";
 import { INITIAL_TEAM_MEMBERS } from "../dojo/data/teamMembers";
 
+// "Body" and "Body Systems" used to be two separate tabs -- one showing
+// invented illustrative dream-body symbols, the other real physiology.
+// They're the same body, so they're one tab now: BodySystemsMapView shows
+// both together, linking each symbol to the real system nearest where it
+// sits (see bodySymbols.js's relatedSystem field). SymbolBodyMapView (the
+// old symbols-only version) stays in the repo, just no longer wired in
+// here.
 const FLAT_LENSES = {
   weave: "Architecture",
   symbols: "Your Symbols",
   body: "Body",
-  bodySystems: "Body Systems",
   team: "Inner Team",
 };
 
@@ -73,8 +78,7 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
 
           {flatLens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
           {flatLens === "symbols" && <SymbolConstellation dreamEntries={dreamEntries} />}
-          {flatLens === "body" && <SymbolBodyMapView />}
-          {flatLens === "bodySystems" && <BodySystemsMapView />}
+          {flatLens === "body" && <BodySystemsMapView />}
           {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
         </div>
       )}

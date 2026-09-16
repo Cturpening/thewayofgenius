@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import { BODY_SYSTEMS } from "./data/bodySystems";
+import { BODY_SYMBOLS } from "./data/bodySymbols";
 
 // Fixed illustration, always -- the camera/viewport never moves here.
 // "Isolating a system" and the alive/holographic feel both come from
@@ -107,6 +108,18 @@ const SYSTEM_GLYPHS = {
   ),
 };
 
+// Hand-placed positions for the 5 illustrative dream-body symbols, roughly
+// matched to where each one's own real chest/throat/etc label actually
+// sits on this same figure -- so a symbol's marker lands right on or near
+// the real system glyph it's linked to (see bodySymbols.js's own note).
+const SYMBOL_MARKER_2D = {
+  crown: { cx: 130, cy: 38 },
+  throat: { cx: 130, cy: 90 },
+  chest: { cx: 130, cy: 150 },
+  solar: { cx: 130, cy: 185 },
+  gut: { cx: 130, cy: 215 },
+};
+
 export default function BodySystemsMapView() {
   const [systemKey, setSystemKey] = useState("nervous");
   const [subKey, setSubKey] = useState(null);
@@ -121,9 +134,11 @@ export default function BodySystemsMapView() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ background: `${COLORS.violet}14`, border: `1px solid ${COLORS.violet}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
-        Reference — real physiology, not client data. The picture never moves -- pick a system below and
-        it lights up in place; everything else settles back. Tap a substructure or signal in the box to go
-        deeper.
+        Real physiology and your illustrative dream-body symbols, together. The picture never moves --
+        pick a system below and it lights up in place, everything else settles back. Five of your symbols
+        (Crown, Throat, Chest/Heart, Solar Plexus, Gut) are linked to the real system nearest where they
+        sit -- their story shows up right alongside that system's physiology when you tap it. Tap a
+        substructure or signal to go deeper.
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -180,6 +195,21 @@ export default function BodySystemsMapView() {
                 >
                   {isSel && <animate attributeName="opacity" values="0.75;1;0.75" dur="2.6s" repeatCount="indefinite" />}
                   {SYSTEM_GLYPHS[s.key]}
+                </g>
+              );
+            })}
+
+            {/* symbol markers only show up for the system they're actually linked to --
+                this is the merged Body view's real bridge between story and physiology */}
+            {BODY_SYMBOLS.filter((sym) => sym.relatedSystem === systemKey).map((sym) => {
+              const pos = SYMBOL_MARKER_2D[sym.key];
+              if (!pos) return null;
+              return (
+                <g key={sym.key}>
+                  <circle cx={pos.cx} cy={pos.cy} r="7" fill={`${sym.color}33`} stroke={sym.color} strokeWidth="1.6">
+                    <animate attributeName="r" values="6;9;6" dur="2.2s" repeatCount="indefinite" />
+                  </circle>
+                  <circle cx={pos.cx} cy={pos.cy} r="2.4" fill={sym.color} />
                 </g>
               );
             })}
@@ -263,6 +293,14 @@ export default function BodySystemsMapView() {
                   </div>
                 </div>
               )}
+              {BODY_SYMBOLS.filter((sym) => sym.relatedSystem === systemKey).map((sym) => (
+                <div key={sym.key} style={{ border: `1px dashed ${sym.color}66`, borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, color: sym.color, letterSpacing: 0.4, marginBottom: 6 }}>ILLUSTRATIVE — INVENTED — SYMBOLIC ECHO HERE</div>
+                  <div style={{ fontSize: 12.5, color: COLORS.ink, fontStyle: "italic", marginBottom: 6 }}>"{sym.symbol}" ({sym.label})</div>
+                  <div style={{ fontSize: 11, color: COLORS.inkDim, marginBottom: 6 }}>Tone: {sym.tone} — seen {sym.recurrence} since {sym.firstSeen}</div>
+                  <div style={{ fontSize: 11.5, color: COLORS.ink, lineHeight: 1.5 }}>{sym.bioNote}</div>
+                </div>
+              ))}
               <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 6 }}>REAL SUBSTRUCTURES — TAP ONE</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {system.substructures.map((s) => (
