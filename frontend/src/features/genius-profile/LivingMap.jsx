@@ -54,9 +54,15 @@ function MouseParallax({ children }) {
   return <group ref={group}>{children}</group>;
 }
 
+// Labels only render for the selected node or whichever one the mouse is
+// currently over -- not every node all the time. That "always-on" text was
+// the biggest single source of clutter: a region with a dozen points meant
+// a dozen labels fighting for space regardless of whether anyone cared
+// about most of them yet.
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
   const coreRef = useRef();
+  const [hovered, setHovered] = useState(false);
 
   useFrame((state, delta) => {
     if (shellRef.current) shellRef.current.rotation.y += delta * 0.22;
@@ -67,9 +73,15 @@ function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, on
   });
 
   const scale = (isSelected ? 1.5 : 1) * size;
+  const showLabel = isSelected || hovered;
 
   return (
-    <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
+    <group
+      position={position}
+      onClick={(e) => { e.stopPropagation(); onSelect(id); }}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+      onPointerOut={() => setHovered(false)}
+    >
       <mesh ref={coreRef} scale={scale}>
         <icosahedronGeometry args={[0.38, 1]} />
         <meshBasicMaterial color={color} transparent opacity={0.5} />
@@ -78,11 +90,13 @@ function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, on
         <icosahedronGeometry args={[0.38, 1]} />
         <meshBasicMaterial color={color} wireframe transparent opacity={isSelected ? 0.95 : 0.5} />
       </mesh>
-      <Billboard position={[0, 0.75 * scale, 0]}>
-        <Text fontSize={0.22} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
-          {label}
-        </Text>
-      </Billboard>
+      {showLabel && (
+        <Billboard position={[0, 0.75 * scale, 0]}>
+          <Text fontSize={0.22} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
+            {label}
+          </Text>
+        </Billboard>
+      )}
     </group>
   );
 }
@@ -166,16 +180,16 @@ function bodyHeightFromFrac(frac) {
   return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
 }
 
-function BodyRegion({ selected, onSelect, palette }) {
+// The symbolic chakra-style points and the real physiological systems are
+// two full datasets on the same spine -- shown together they read as one
+// overcrowded map instead of two clear ones. bodyView picks which one is
+// actually on screen; the spine itself stays as a shared anchor either way.
+function BodyRegion({ selected, onSelect, palette, bodyView }) {
   const offset = REGION_OFFSET.body;
   const cyMin = Math.min(...BODY_SYMBOLS.map((s) => s.cy));
   const cyMax = Math.max(...BODY_SYMBOLS.map((s) => s.cy));
   const symbolY = (cy) => bodyHeightFromFrac((cy - cyMin) / (cyMax - cyMin));
 
-  // Physiological systems orbit the spine in a small ring at their own
-  // height, rather than sitting directly on it -- keeps them visually
-  // distinct from the symbolic chakra-style points while still reading
-  // as "part of the same body."
   const systemPositions = useMemo(() => {
     return BODY_SYSTEMS.map((s, i) => {
       const angle = (i / BODY_SYSTEMS.length) * Math.PI * 2;
@@ -192,13 +206,15 @@ function BodyRegion({ selected, onSelect, palette }) {
         <sphereGeometry args={[0.35, 12, 12]} />
         <meshBasicMaterial color={COLORS.grid} wireframe transparent opacity={0.5} />
       </mesh>
-      {systemPositions.map((s) => (
-        <Line key={s.key + "-ring"} points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
-      ))}
-      {BODY_SYMBOLS.map((s) => (
+
+      {bodyView === "symbolic" && BODY_SYMBOLS.map((s) => (
         <MapNode key={s.key} id={`body:${s.key}`} label={s.label} color={s.color} position={[0, symbolY(s.cy), 0]} pulsing isSelected={selected === `body:${s.key}`} onSelect={onSelect} palette={palette} />
       ))}
-      {systemPositions.map((s) => (
+
+      {bodyView === "systems" && systemPositions.map((s) => (
+        <Line key={s.key + "-ring"} points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
+      ))}
+      {bodyView === "systems" && systemPositions.map((s) => (
         <MapNode key={s.key} id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
       ))}
     </group>
@@ -238,7 +254,7 @@ function TeamRegion({ teamMembers, selected, onSelect, palette }) {
   );
 }
 
-function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark }) {
+function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView }) {
   return (
     <>
       <color attach="background" args={[palette.background]} />
@@ -259,11 +275,11 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
 
         {layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
         {layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
-        {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} />}
+        {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
         {layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
       </MouseParallax>
 
-      <OrbitControls enableZoom enablePan autoRotate autoRotateSpeed={0.2} minDistance={4} maxDistance={40} />
+      <OrbitControls enableZoom enablePan minDistance={4} maxDistance={40} />
     </>
   );
 }
@@ -277,6 +293,7 @@ const LAYER_META = {
 
 export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
   const [layers, setLayers] = useState({ architecture: true, symbols: true, body: false, team: false });
+  const [bodyView, setBodyView] = useState("symbolic"); // symbolic | systems -- one at a time, not both
   const [selected, setSelected] = useState(null);
   const [theme, setTheme] = useHologramTheme();
   const palette = HOLOGRAM_PALETTES[theme];
@@ -387,15 +404,13 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
-        relation to it -- toggle any combination on. Architecture and Your Symbols are real data; Body
-        now includes both the symbolic chakra-style points (illustrative, see Body View) and real
-        physiological systems as reference vocabulary for a coach tracking real client patterns; Inner
-        Team reflects whatever you've named this session (not yet saved between visits). Move your mouse
-        to look around, drag to orbit deliberately, scroll to zoom, tap a point for the real story.
+        relation to it -- toggle any combination on. Labels stay quiet until you hover or tap a point, so
+        the map itself stays calm even with a lot going on. Move your mouse to look around, drag to orbit
+        deliberately, scroll to zoom.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {Object.keys(LAYER_META).map((key) => (
             <button
               key={key}
@@ -411,6 +426,28 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
               {layers[key] ? "● " : "○ "}{LAYER_META[key].label}
             </button>
           ))}
+          {layers.body && (
+            <div style={{ display: "flex", gap: 4, marginLeft: 4, paddingLeft: 10, borderLeft: `1px solid ${COLORS.grid}` }}>
+              {[
+                { key: "symbolic", label: "Symbolic (illustrative)" },
+                { key: "systems", label: "Body Systems (reference)" },
+              ].map((v) => (
+                <button
+                  key={v.key}
+                  onClick={() => setBodyView(v.key)}
+                  style={{
+                    padding: "5px 11px", borderRadius: 999,
+                    border: `1px solid ${bodyView === v.key ? COLORS.coral : COLORS.grid}`,
+                    background: bodyView === v.key ? `${COLORS.coral}18` : "transparent",
+                    color: bodyView === v.key ? COLORS.coral : COLORS.inkDim,
+                    fontSize: 10.5, cursor: "pointer",
+                  }}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           {["black", "white"].map((t) => (
@@ -434,7 +471,7 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ width: "100%", maxWidth: 620, height: 480, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
           <Canvas camera={{ position: [0, 5, 22], fov: 55 }} onPointerMissed={() => setSelected(null)}>
-            <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} />
+            <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} bodyView={bodyView} />
           </Canvas>
         </div>
 
