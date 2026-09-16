@@ -8,6 +8,7 @@ import { BODY_SYSTEMS } from "../library/data/bodySystems";
 import { buildSymbolGraph, entriesForTag, hashTag, neighborsForTag, SYMBOL_PALETTE } from "./symbolGraph";
 import { fibonacciSpherePosition } from "./sphereLayout";
 import { HOLOGRAM_PALETTES, useHologramTheme } from "./hologramTheme";
+import { NeuronRecordEditor, PROGRESS_STATE_META } from "./NeuronRecordEditor";
 
 // One shared 3D scene instead of four separate holograms. Chelsey's own
 // framing, twice over: (1) this should feel like one personal universe
@@ -346,7 +347,50 @@ function SystemShape({ systemKey, color }) {
 // system's one recognizable shape rather than three different ones.
 // Pulsing breathes the whole group's scale instead of one mesh's opacity,
 // since a composite shape has several meshes, not one to target.
-function ShapeNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette, systemKey }) {
+// progressState (optional) is the real practice-history state from a
+// neuron_records row -- see NeuronRecordEditor.jsx's PROGRESS_STATE_META.
+// Rendered as a colored halo shell around the shape, distinct from the
+// shape's own color, so a node's practice history reads at a glance
+// without having to open its content box: absent/'unformed' gets no halo
+// (an untouched reference node looks exactly like it always has),
+// 'practicing' gets a steady thin ring, 'strengthened' a brighter, faster,
+// slightly larger one, and 'wounded' a dim, irregular flicker -- a
+// pathway that's real but weak, not a clean pulse.
+function ProgressHalo({ progressState, size }) {
+  const ref = useRef();
+
+  // useFrame must run unconditionally (rules of hooks) -- the "no halo for
+  // unformed/no record" behavior is a null render below, not an early
+  // return above this hook.
+  useFrame((state) => {
+    if (!ref.current) return;
+    const t = state.clock.elapsedTime;
+    let opacity;
+    if (progressState === "wounded") {
+      // Irregular, not a clean sine -- reads as flickering/unstable rather
+      // than a healthy steady pulse.
+      opacity = 0.25 + Math.max(0, Math.sin(t * 2.3) * Math.sin(t * 0.7)) * 0.3;
+    } else if (progressState === "strengthened") {
+      opacity = 0.55 + Math.sin(t * 2.2) * 0.25;
+    } else {
+      opacity = 0.35 + Math.sin(t * 1.1) * 0.15;
+    }
+    ref.current.material.opacity = opacity;
+  });
+
+  if (!progressState || progressState === "unformed") return null;
+  const meta = PROGRESS_STATE_META[progressState];
+  const haloScale = (progressState === "strengthened" ? 1.9 : 1.65) * size;
+
+  return (
+    <mesh ref={ref} scale={haloScale}>
+      <icosahedronGeometry args={[0.2, 1]} />
+      <meshBasicMaterial color={meta.color} wireframe transparent opacity={0.4} />
+    </mesh>
+  );
+}
+
+function ShapeNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette, systemKey, progressState }) {
   const groupRef = useRef();
 
   useFrame((state, delta) => {
@@ -362,6 +406,7 @@ function ShapeNode({ id, label, color, position, size = 1, pulsing, isSelected, 
       <group ref={groupRef}>
         <SystemShape systemKey={systemKey} color={color} />
       </group>
+      <ProgressHalo progressState={progressState} size={size} />
       <Billboard position={[0, 0.7 * size, 0]}>
         <Text fontSize={0.2} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.011} outlineColor={palette.labelOutline}>
           {label}
@@ -471,7 +516,7 @@ function SymbolsRegion({ dreamEntries, selected, onSelect, palette }) {
 // generic "Cell 1..6" placeholder; tap one to reveal a small cluster of
 // generic signal points one layer deeper still. Tap empty space, or use
 // the breadcrumb/dropdown outside the canvas, to back out.
-function BodyRegion({ selected, onSelect, palette, bodyView }) {
+function BodyRegion({ selected, onSelect, palette, bodyView, neuronRecords }) {
   const offset = REGION_OFFSET.body;
   const cyMin = Math.min(...BODY_SYMBOLS.map((s) => s.cy));
   const cyMax = Math.max(...BODY_SYMBOLS.map((s) => s.cy));
@@ -548,14 +593,23 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
                         const prev = signalPositions[(j + SIGNALS_PER_SUB - 1) % SIGNALS_PER_SUB];
                         const signalCurve = organicCurve(pos, npos, 0.22);
                         const neighborCurve = organicCurve(npos, prev, 0.14);
+                        // Real practice history changes how the pathway itself looks, not
+                        // just the node at the end of it -- "strengthened" pathways run
+                        // brighter and faster, "wounded" ones dimmer and slower, matching
+                        // real neuroplasticity rather than a cosmetic-only status dot.
+                        const progressState = neuronRecords?.[signalId]?.progressState;
+                        const pathColor = progressState && progressState !== "unformed" ? PROGRESS_STATE_META[progressState].color : s.color;
+                        const pathOpacity = progressState === "wounded" ? 0.25 : progressState === "strengthened" ? 0.75 : 0.5;
+                        const pathWidth = progressState === "strengthened" ? 1.3 : 0.75;
+                        const pulseSpeed = progressState === "wounded" ? 0.2 : progressState === "strengthened" ? 1.1 : 0.6;
                         return (
                           <group key={signalId}>
-                            <Line points={signalCurve} color={s.color} transparent opacity={0.1} lineWidth={3.5} />
-                            <Line points={signalCurve} color={s.color} transparent opacity={0.5} lineWidth={0.75} />
-                            <SignalPulse points={signalCurve} color={s.color} speed={0.6} offset={j / SIGNALS_PER_SUB} />
+                            <Line points={signalCurve} color={pathColor} transparent opacity={0.1} lineWidth={3.5} />
+                            <Line points={signalCurve} color={pathColor} transparent opacity={pathOpacity} lineWidth={pathWidth} />
+                            <SignalPulse points={signalCurve} color={pathColor} speed={pulseSpeed} offset={j / SIGNALS_PER_SUB} />
                             {/* synapse-style cross-links between neighbors -- network look, not a flat ring */}
                             <Line points={neighborCurve} color={s.color} transparent opacity={0.22} lineWidth={0.4} />
-                            <ShapeNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.6} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} systemKey={s.key} />
+                            <ShapeNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.6} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} systemKey={s.key} progressState={progressState} />
                           </group>
                         );
                       })}
@@ -718,7 +772,7 @@ function CameraRig({ focusKey, focusTarget, focusDistance, cameraStateRef, contr
   return null;
 }
 
-function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView, cameraStateRef, controlsRef }) {
+function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView, cameraStateRef, controlsRef, neuronRecords }) {
   const selLayer = selected ? selected.split(":")[0] : null;
   // Drilled into a specific body system -- everything else (other regions,
   // other systems) hides so the zoom reads as one clear holographic layer
@@ -747,7 +801,7 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
 
       {!bodyDrillActive && layers.architecture && <ArchitectureRegion selected={selected} onSelect={setSelected} palette={palette} />}
       {!bodyDrillActive && layers.symbols && <SymbolsRegion dreamEntries={dreamEntries} selected={selected} onSelect={setSelected} palette={palette} />}
-      {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
+      {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} neuronRecords={neuronRecords} />}
       {!bodyDrillActive && layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
 
       <CameraRig focusKey={focusKey} focusTarget={focusTarget} focusDistance={focusDistance} cameraStateRef={cameraStateRef} controlsRef={controlsRef} />
@@ -766,7 +820,7 @@ const LAYER_META = {
 const DEFAULT_YAW = -0.5, DEFAULT_PITCH = 0.22;
 const YAW_STEP = 0.28, PITCH_STEP = 0.18, ZOOM_FACTOR = 0.82;
 
-export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
+export default function LivingMap({ dreamEntries = [], teamMembers = [], neuronRecords = {}, onSaveRecord, onLogPractice }) {
   const [layers, setLayers] = useState({ architecture: true, symbols: true, body: false, team: false });
   const [bodyView, setBodyView] = useState("symbolic"); // symbolic | systems -- one at a time, not both
   const [selected, setSelected] = useState(null);
@@ -946,6 +1000,15 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
           This is as deep as the map goes -- a single signal in the {sub.label.toLowerCase()}, the same
           pattern your symbols and story keep circling back to at the surface.
         </div>
+        {onSaveRecord && (
+          <NeuronRecordEditor
+            nodeKey={selected}
+            record={neuronRecords[selected]}
+            onSave={onSaveRecord}
+            onLogPractice={onLogPractice}
+            accentColor={s.color}
+          />
+        )}
       </>
     );
   } else if (selLayer === "region") {
@@ -1188,7 +1251,7 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 620 }}>
           <div style={{ height: 480, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
             <Canvas camera={{ position: [0, 5, 22], fov: 55 }} onPointerMissed={() => setSelected(null)}>
-              <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} bodyView={bodyView} cameraStateRef={cameraStateRef} controlsRef={controlsRef} />
+              <Scene layers={layers} dreamEntries={dreamEntries} teamMembers={teamMembers} selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} bodyView={bodyView} cameraStateRef={cameraStateRef} controlsRef={controlsRef} neuronRecords={neuronRecords} />
             </Canvas>
           </div>
 

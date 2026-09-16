@@ -485,3 +485,61 @@ create index if not exists flagged_events_unreviewed_idx
 
 alter table public.flagged_events enable row level security;
 -- No policies added on purpose -- see comment above.
+
+-- ---------------------------------------------------------------------------
+-- Neuron records (Genius Profile -> Body / Hologram, deepest layer)
+--
+-- The "each neuron is a real story or experience tied to a skill" feature:
+-- one row per node a user has actually filled something in on, at any of
+-- the three Body/Body-Systems depths (a whole system, a substructure, or
+-- one signal/neuron). `node_key` reuses the exact selection string the
+-- frontend already builds to identify that node -- see
+-- frontend/src/features/genius-profile/LivingMap.jsx's parseBodySelection
+-- ("body-system:<key>", "body-sub:<sys>__<sub>", "body-signal:<sys>__<sub>__<i>")
+-- -- rather than inventing a second id scheme for the same nodes. There is
+-- no row until a user (or, later, Edin) actually writes something --
+-- an unvisited node has no record, which the frontend reads as the
+-- default "unformed" state, not an error.
+--
+-- `progress_state` is the athlete-backflip idea made real: a pathway starts
+-- 'unformed' (no practice yet), moves to 'practicing' once it's been
+-- logged at least once, and 'strengthened' once it's been logged enough
+-- times to call it a built pathway. 'wounded' is the one state that's
+-- never set automatically -- only a user (or Edin, on the user's behalf)
+-- marks a pathway as weak/dim/trauma-affected, since that's a judgment
+-- about the story, not something a practice count can infer.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.neuron_records (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    node_key text not null,
+    story text, -- the real personal story/experience this node represents
+    skill text, -- the skill this story/practice is building
+    practice_goal text, -- the metacognitive practice/training goal tied to it
+    vitals_note text, -- health record or vitals note, in the user's own words
+    dream_content text, -- subconscious/dream content tied to this node
+    progress_state text not null default 'unformed'
+        check (progress_state in ('unformed', 'practicing', 'strengthened', 'wounded')),
+    practice_count integer not null default 0,
+    last_practiced_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (user_id, node_key)
+);
+
+alter table public.neuron_records add column if not exists practice_count integer not null default 0;
+alter table public.neuron_records add column if not exists last_practiced_at timestamptz;
+alter table public.neuron_records add column if not exists created_at timestamptz not null default now();
+alter table public.neuron_records add column if not exists updated_at timestamptz not null default now();
+
+create index if not exists neuron_records_user_id_idx
+    on public.neuron_records (user_id);
+
+alter table public.neuron_records enable row level security;
+
+drop policy if exists "Users manage their own neuron records" on public.neuron_records;
+create policy "Users manage their own neuron records"
+    on public.neuron_records for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);

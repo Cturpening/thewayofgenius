@@ -2,6 +2,7 @@ import { useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import { BODY_SYSTEMS } from "./data/bodySystems";
 import { BODY_SYMBOLS } from "./data/bodySymbols";
+import { NeuronRecordEditor, PROGRESS_STATE_META } from "../genius-profile/NeuronRecordEditor";
 
 // Fixed illustration, always -- the camera/viewport never moves here.
 // "Isolating a system" and the alive/holographic feel both come from
@@ -120,13 +121,14 @@ const SYMBOL_MARKER_2D = {
   gut: { cx: 130, cy: 215 },
 };
 
-export default function BodySystemsMapView() {
+export default function BodySystemsMapView({ neuronRecords = {}, onSaveRecord, onLogPractice }) {
   const [systemKey, setSystemKey] = useState("nervous");
   const [subKey, setSubKey] = useState(null);
   const [signalIdx, setSignalIdx] = useState(null);
 
   const system = BODY_SYSTEMS.find((s) => s.key === systemKey);
   const sub = subKey ? system.substructures.find((x) => x.key === subKey) : null;
+  const signalNodeKey = sub && signalIdx !== null ? `body-signal:${systemKey}__${subKey}__${signalIdx}` : null;
 
   const pickSystem = (key) => { setSystemKey(key); setSubKey(null); setSignalIdx(null); };
   const pickSub = (key) => { setSubKey(key); setSignalIdx(null); };
@@ -251,6 +253,15 @@ export default function BodySystemsMapView() {
                 This is as deep as it goes -- a single signal in the {sub.label.toLowerCase()}, the same
                 pattern your symbols and story keep circling back to at the surface.
               </div>
+              {onSaveRecord && (
+                <NeuronRecordEditor
+                  nodeKey={signalNodeKey}
+                  record={neuronRecords[signalNodeKey]}
+                  onSave={onSaveRecord}
+                  onLogPractice={onLogPractice}
+                  accentColor={system.color}
+                />
+              )}
             </>
           ) : sub ? (
             <>
@@ -263,15 +274,20 @@ export default function BodySystemsMapView() {
               </div>
               <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 6 }}>TAP A {(system.signalLabel || "SIGNAL").toUpperCase()} TO GO DEEPER</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {Array.from({ length: 6 }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSignalIdx(i)}
-                    style={{ padding: "5px 12px", borderRadius: 14, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 11, cursor: "pointer" }}
-                  >
-                    {system.signalLabel || "Signal"} {i + 1}
-                  </button>
-                ))}
+                {Array.from({ length: 6 }, (_, i) => {
+                  const key = `body-signal:${systemKey}__${subKey}__${i}`;
+                  const state = neuronRecords[key]?.progressState;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setSignalIdx(i)}
+                      style={{ padding: "5px 12px", borderRadius: 14, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+                    >
+                      {state && <span style={{ width: 6, height: 6, borderRadius: "50%", background: PROGRESS_STATE_META[state].color, display: "inline-block" }} />}
+                      {system.signalLabel || "Signal"} {i + 1}
+                    </button>
+                  );
+                })}
               </div>
             </>
           ) : (

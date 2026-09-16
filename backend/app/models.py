@@ -158,6 +158,31 @@ class ChatMessage(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
+class NeuronRecord(Base):
+    """A user-filled node in the Genius Profile body map -- a real story,
+    skill, practice goal, vitals note, and/or dream content attached to one
+    node (a whole system, a substructure, or one signal/neuron). See
+    database/schema.sql's comment on this table for node_key and
+    progress_state."""
+
+    __tablename__ = "neuron_records"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    node_key = Column(Text, nullable=False)
+    story = Column(Text, nullable=True)
+    skill = Column(Text, nullable=True)
+    practice_goal = Column(Text, nullable=True)
+    vitals_note = Column(Text, nullable=True)
+    dream_content = Column(Text, nullable=True)
+    progress_state = Column(Text, nullable=False, default="unformed")
+    practice_count = Column(Integer, nullable=False, default=0)
+    last_practiced_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class FlaggedEvent(Base):
     """Safety-escalation log — see database/schema.sql and
     app/crisis_detection.py (Track B) for the full explanation. Written

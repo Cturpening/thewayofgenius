@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import GeniusProfileMap from "./GeniusProfileMap";
 import SymbolConstellation from "./SymbolConstellation";
@@ -6,6 +6,7 @@ import BodySystemsMapView from "../library/BodySystemsMapView";
 import DreamArcView from "../library/DreamArcView";
 import InnerTeamView from "../dojo/InnerTeamView";
 import { INITIAL_TEAM_MEMBERS } from "../dojo/data/teamMembers";
+import { fetchNeuronRecords, saveNeuronRecord, logNeuronPractice } from "./neuronRecordsApi";
 
 // Three.js pulls in a real chunk of weight -- lazy-loaded so it only
 // downloads when someone actually switches into Hologram mode.
@@ -40,6 +41,30 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
   // shows up in both Flat's Inner Team tab and the Hologram's Inner Team
   // region. Still not persisted to a backend -- a real gap, not fixed here.
   const [teamMembers, setTeamMembers] = useState(INITIAL_TEAM_MEMBERS);
+
+  // Real per-node story/skill/practice-goal/vitals/dream data (see
+  // neuronRecordsApi.js) -- lifted up here, not owned by BodySystemsMapView
+  // or LivingMap individually, so the same record shows up identically in
+  // both Flat and Hologram mode for the same node. Keyed by node_key, e.g.
+  // "body-signal:nervous__cerebrum__2".
+  const [neuronRecords, setNeuronRecords] = useState({});
+
+  useEffect(() => {
+    fetchNeuronRecords().then(setNeuronRecords).catch((err) => console.error("Failed to load neuron records:", err));
+  }, []);
+
+  const saveRecord = (nodeKey, fields) => {
+    setNeuronRecords((cur) => ({ ...cur, [nodeKey]: { ...cur[nodeKey], nodeKey, ...fields } }));
+    saveNeuronRecord(nodeKey, fields)
+      .then((record) => setNeuronRecords((cur) => ({ ...cur, [nodeKey]: record })))
+      .catch((err) => console.error("Failed to save neuron record:", err));
+  };
+
+  const logPractice = (nodeKey) => {
+    logNeuronPractice(nodeKey)
+      .then((record) => setNeuronRecords((cur) => ({ ...cur, [nodeKey]: record })))
+      .catch((err) => console.error("Failed to log practice:", err));
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -106,12 +131,20 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
             <>
               {flatLens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
               {flatLens === "symbols" && <SymbolConstellation dreamEntries={dreamEntries} />}
-              {flatLens === "body" && <BodySystemsMapView />}
+              {flatLens === "body" && (
+                <BodySystemsMapView neuronRecords={neuronRecords} onSaveRecord={saveRecord} onLogPractice={logPractice} />
+              )}
               {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
             </>
           ) : (
             <Suspense fallback={<div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Loading the map…</div>}>
-              <LivingMap dreamEntries={dreamEntries} teamMembers={teamMembers} />
+              <LivingMap
+                dreamEntries={dreamEntries}
+                teamMembers={teamMembers}
+                neuronRecords={neuronRecords}
+                onSaveRecord={saveRecord}
+                onLogPractice={logPractice}
+              />
             </Suspense>
           )}
         </div>

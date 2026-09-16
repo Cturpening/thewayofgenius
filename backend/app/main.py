@@ -29,6 +29,7 @@ from app.models import (
     GeniusConstitutionResult,
     Goal,
     MembershipPlan,
+    NeuronRecord,
     Profile,
     SymbolValidation,
 )
@@ -64,6 +65,8 @@ from app.schemas import (
     MembershipPlanCreate,
     MembershipPlanOut,
     MembershipPlanUpdate,
+    NeuronRecordOut,
+    NeuronRecordUpsert,
     SymbolValidationCreate,
     SymbolValidationOut,
 )
@@ -533,6 +536,92 @@ def delete_calendar_event(event_id: UUID, db: Session = Depends(get_db), user_id
     if event is None:
         raise HTTPException(status_code=404, detail="Calendar event not found")
     db.delete(event)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Neuron records (Genius Profile -> Body / Hologram, deepest layer)
+#
+# Keyed by node_key, not a UUID passed to the caller -- the frontend already
+# knows exactly which node it's looking at (LivingMap.jsx / BodySystemsMapView.jsx
+# build the same selection string used here), so there's no separate id to
+# round-trip. GET returns every record the account has at once: a body map
+# has dozens of nodes, and fetching them one at a time as each is opened
+# would mean a network round-trip on every click -- the opposite of the
+# calm, click-only feel the rest of this feature is built around.
+# ---------------------------------------------------------------------------
+
+@app.get("/neuron-records", response_model=list[NeuronRecordOut])
+def list_neuron_records(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return db.query(NeuronRecord).filter(NeuronRecord.user_id == user_id).all()
+
+
+@app.put("/neuron-records/{node_key}", response_model=NeuronRecordOut)
+def upsert_neuron_record(
+    node_key: str,
+    payload: NeuronRecordUpsert,
+    db: Session = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    record = (
+        db.query(NeuronRecord)
+        .filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key)
+        .first()
+    )
+    updates = payload.model_dump(exclude_unset=True)
+    if record is None:
+        record = NeuronRecord(user_id=user_id, node_key=node_key, **updates)
+        db.add(record)
+    else:
+        for field, value in updates.items():
+            setattr(record, field, value)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@app.post("/neuron-records/{node_key}/log-practice", response_model=NeuronRecordOut)
+def log_neuron_practice(
+    node_key: str, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    """Records one practice session against this node -- the "watching a
+    backflip get better in real time" idea made real: each call is one more
+    rep, and the pathway visibly builds from it instead of needing a manual
+    status change every time. 'wounded' is left alone here on purpose (see
+    schemas.py's NeuronRecordUpsert) -- only an explicit edit clears it,
+    since a few good reps don't erase what made a pathway weak in the
+    first place."""
+    record = (
+        db.query(NeuronRecord)
+        .filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key)
+        .first()
+    )
+    if record is None:
+        record = NeuronRecord(user_id=user_id, node_key=node_key)
+        db.add(record)
+
+    record.practice_count += 1
+    record.last_practiced_at = datetime.now(timezone.utc)
+    if record.progress_state == "unformed":
+        record.progress_state = "practicing"
+    elif record.progress_state == "practicing" and record.practice_count >= 5:
+        record.progress_state = "strengthened"
+
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@app.delete("/neuron-records/{node_key}", status_code=204)
+def delete_neuron_record(node_key: str, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    record = (
+        db.query(NeuronRecord)
+        .filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key)
+        .first()
+    )
+    if record is None:
+        raise HTTPException(status_code=404, detail="Neuron record not found")
+    db.delete(record)
     db.commit()
 
 

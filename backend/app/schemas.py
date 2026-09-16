@@ -370,3 +370,39 @@ class CheckInSuggestion(BaseModel):
 
 class CheckInResponse(BaseModel):
     suggestions: List[CheckInSuggestion]
+
+
+# ---------------------------------------------------------------------------
+# Neuron records (Genius Profile -> Body / Hologram, deepest layer)
+# ---------------------------------------------------------------------------
+
+class NeuronRecordUpsert(BaseModel):
+    """All fields optional -- a save from the content-box form only sends
+    what that form actually shows. progress_state is here too so a user
+    (or later, Edin) can explicitly mark a pathway 'wounded' -- the one
+    state log-practice below never sets on its own."""
+
+    story: Optional[str] = None
+    skill: Optional[str] = None
+    practice_goal: Optional[str] = None
+    vitals_note: Optional[str] = None
+    dream_content: Optional[str] = None
+    progress_state: Optional[Literal["unformed", "practicing", "strengthened", "wounded"]] = None
+
+
+class NeuronRecordOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    node_key: str
+    story: Optional[str] = None
+    skill: Optional[str] = None
+    practice_goal: Optional[str] = None
+    vitals_note: Optional[str] = None
+    dream_content: Optional[str] = None
+    progress_state: str
+    practice_count: int
+    last_practiced_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
