@@ -156,6 +156,65 @@ function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, on
   );
 }
 
+// A gentle bow through the midpoint instead of a straight segment -- reads
+// as a vessel or nerve fiber curving through space rather than a wire
+// connecting two abstract points. Bow direction is deterministic (derived
+// from the two endpoints) so it doesn't jitter between renders.
+function organicCurve(from, to, bow, segments = 12) {
+  const midX = (from[0] + to[0]) / 2, midY = (from[1] + to[1]) / 2 + bow, midZ = (from[2] + to[2]) / 2;
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const u = 1 - t;
+    pts.push([
+      u * u * from[0] + 2 * u * t * midX + t * t * to[0],
+      u * u * from[1] + 2 * u * t * midY + t * t * to[1],
+      u * u * from[2] + 2 * u * t * midZ + t * t * to[2],
+    ]);
+  }
+  return pts;
+}
+
+// The substructure/signal layers of Body Systems get their own shape
+// language instead of reusing MapNode's icosahedron -- "we don't need
+// everything looking like solar system planet nodes." A capsule reads as
+// organic (an organ, a cell, a bundle of fiber) rather than a planet, and
+// seed varies each one's proportion/tilt a little so a cluster of these
+// doesn't look like identical stamped-out units, closer to how real
+// anatomy actually varies piece to piece.
+function OrganGlyph({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette, seed = 0 }) {
+  const coreRef = useRef();
+
+  useFrame((state) => {
+    if (coreRef.current && pulsing) {
+      const pulse = 0.7 + Math.sin(state.clock.elapsedTime * 1.7 + seed * 1.7) * 0.3;
+      coreRef.current.material.opacity = 0.45 * pulse;
+    }
+  });
+
+  const scale = (isSelected ? 1.6 : 1) * size;
+  const length = 0.34 + (seed % 3) * 0.08;
+  const tilt = [seed * 0.7, seed * 1.3, seed * 0.4];
+
+  return (
+    <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
+      <mesh ref={coreRef} scale={scale} rotation={tilt}>
+        <capsuleGeometry args={[0.15, length, 4, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0.45} />
+      </mesh>
+      <mesh scale={scale * 1.18} rotation={tilt}>
+        <capsuleGeometry args={[0.15, length, 4, 8]} />
+        <meshBasicMaterial color={color} wireframe transparent opacity={isSelected ? 0.9 : 0.45} />
+      </mesh>
+      <Billboard position={[0, 0.55 * scale, 0]}>
+        <Text fontSize={0.2} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.011} outlineColor={palette.labelOutline}>
+          {label}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
 function RegionLabel({ offset, text, palette }) {
   return (
     <Billboard position={[offset[0], 3.6, offset[2]]}>
@@ -315,18 +374,18 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
                   const signalPositions = isSubOpen ? spherePositions(pos, 0.6, SIGNALS_PER_SUB) : null;
                   return (
                     <group key={subId}>
-                      <Line points={[s.position, pos]} color={s.color} transparent opacity={0.35} lineWidth={0.6} />
-                      <MapNode id={subId} label={sub.label} color={s.color} size={0.55} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} />
+                      <Line points={organicCurve(s.position, pos, 0.22)} color={s.color} transparent opacity={0.4} lineWidth={0.7} />
+                      <OrganGlyph id={subId} label={sub.label} color={s.color} size={0.85} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} seed={i} />
 
                       {isSubOpen && signalPositions.map((npos, j) => {
                         const signalId = `body-signal:${s.key}__${sub.key}__${j}`;
                         const prev = signalPositions[(j + SIGNALS_PER_SUB - 1) % SIGNALS_PER_SUB];
                         return (
                           <group key={signalId}>
-                            <Line points={[pos, npos]} color={s.color} transparent opacity={0.35} lineWidth={0.5} />
-                            {/* synapse-style cross-links between neighbors -- brain-cluster look, not a flat ring */}
-                            <Line points={[npos, prev]} color={s.color} transparent opacity={0.2} lineWidth={0.4} />
-                            <MapNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} />
+                            <Line points={organicCurve(pos, npos, 0.12)} color={s.color} transparent opacity={0.4} lineWidth={0.55} />
+                            {/* synapse-style cross-links between neighbors -- network look, not a flat ring */}
+                            <Line points={organicCurve(npos, prev, 0.08)} color={s.color} transparent opacity={0.22} lineWidth={0.4} />
+                            <OrganGlyph id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.5} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} seed={j + 0.5} />
                           </group>
                         );
                       })}
@@ -570,6 +629,22 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     setBodyView("systems");
     setSelected(key ? `body-system:${key}` : null);
   };
+
+  // One dropdown covering every destination in the whole hologram --
+  // the camera is still hard to aim manually, so this is a direct way to
+  // land on anything without needing to see or click the 3D point at all.
+  // Reuses the exact same "layer:key" ids computeFocus already knows how
+  // to frame, so no new camera logic is needed here.
+  const jumpTo = (value) => {
+    if (!value) return;
+    const [layer, rest] = value.split(":");
+    if (layer === "architecture") setLayers((p) => ({ ...p, architecture: true }));
+    else if (layer === "symbols") setLayers((p) => ({ ...p, symbols: true }));
+    else if (layer === "team") setLayers((p) => ({ ...p, team: true }));
+    else if (layer === "region") setLayers((p) => ({ ...p, [rest]: true }));
+    setSelected(value);
+  };
+  const { tagList: symbolTags } = buildSymbolGraph(dreamEntries);
 
   // Resolve whatever's selected into real content, regardless of which
   // region it came from -- id is "layer:key" (see MapNode). "body-system"
@@ -837,7 +912,30 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <select
+            value=""
+            onChange={(e) => jumpTo(e.target.value)}
+            style={{ padding: "5px 10px", borderRadius: 999, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 11, cursor: "pointer" }}
+          >
+            <option value="">Jump to anything…</option>
+            <optgroup label="Architecture">
+              {PROFILE_NODES.map((n) => <option key={n.key} value={`architecture:${n.key}`}>{n.label}</option>)}
+            </optgroup>
+            {symbolTags.length > 0 && (
+              <optgroup label="Your Symbols">
+                {symbolTags.map((tag) => <option key={tag} value={`symbols:${tag}`}>{tag}</option>)}
+              </optgroup>
+            )}
+            <optgroup label="Body">
+              <option value="region:body">Overview</option>
+            </optgroup>
+            {teamMembers.length > 0 && (
+              <optgroup label="Inner Team">
+                {teamMembers.map((m) => <option key={m.id} value={`team:${m.id}`}>{m.name}</option>)}
+              </optgroup>
+            )}
+          </select>
           {["black", "white"].map((t) => (
             <button
               key={t}
