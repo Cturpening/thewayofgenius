@@ -7,6 +7,20 @@ import SpeakButton from "../../components/common/SpeakButton";
 import { CONSTITUTION_SCENARIOS } from "../genius-constitution/data/constitutionData";
 import { fetchChatMessages, sendChatMessage } from "./api";
 
+// Plain-language label for each real tool Edin can call (see
+// backend/app/edin_tools.py's ALL_TOOL_DECLARATIONS) -- shown as a small
+// chip under her reply so what she actually did is never invisible, same
+// honesty rule as every REAL/ILLUSTRATIVE label elsewhere in this app.
+const TOOL_CALL_LABELS = {
+  save_neuron_record: "Saved to this node",
+  log_neuron_practice: "Logged a practice",
+  log_dream_journal_entry: "Logged a dream journal entry",
+  create_goal: "Created a goal",
+  update_goal_progress: "Updated goal progress",
+  log_follow_through: "Logged a follow-through intention",
+  add_calendar_event: "Added a calendar event",
+};
+
 // `compact`: used by the floating "Edin -- Available Anywhere" popup (see
 // App.jsx). Same underlying conversation and memory as the full Edin tab --
 // every message still goes through the same /chat-messages endpoints and
@@ -139,7 +153,10 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
         <div style={{ background: `${COLORS.teal}14`, border: `1px solid ${COLORS.tealDim}`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
           This is Edin — the voice, not the data. The Genius Profile Map, Body Map, and Arc View are what
           Edin knows about you; this is what it sounds like when it talks to you about it. Try typing about
-          sleep, the door symbol, your gut, or tonight's practice — those have real data behind them.
+          sleep, the door symbol, your gut, or tonight's practice — those have real data behind them. She can
+          also act for real now, not just talk: log a dream, create or update a goal, log a follow-through
+          intention, or add a calendar item, right from this conversation. Any reply where she actually did
+          something shows a small ✓ chip so it's never invisible.
         </div>
       )}
 
@@ -264,7 +281,7 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 34 }}>
                 {m.toolCalls.map((call, ci) => (
                   <span key={ci} style={{ fontSize: 10, color: COLORS.teal, background: `${COLORS.teal}18`, borderRadius: 10, padding: "2px 8px" }}>
-                    ✓ {call.name === "log_neuron_practice" ? "Logged a practice" : "Saved to this node"}
+                    ✓ {TOOL_CALL_LABELS[call.name] || "Made a real change"}
                   </span>
                 ))}
               </div>

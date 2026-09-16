@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app import neuron_tools
+from app import edin_tools, neuron_tools
 from app.auth import get_current_coach_id, get_current_user_id
-from app.crisis_detection import classify_crisis_tier, override_message, requires_override
+from app.track_b import run_track_b
+from app.user_context import confirmed_tags, display_name
 from app.config import get_settings
 from app.database import engine, get_db
 from app.edin_ai import (
@@ -25,7 +26,6 @@ from app.models import (
     ChatMessage,
     CoachNote,
     DreamJournalEntry,
-    FlaggedEvent,
     FollowThroughLogEntry,
     GeniusConstitutionResult,
     Goal,
@@ -90,17 +90,11 @@ app.add_middleware(
 
 
 def _run_track_b(db: Session, user_id: UUID, combined_text: str) -> str | None:
-    """Classifies `combined_text` and, if it crosses the hard-override
-    threshold, writes a flagged_events row and returns the fixed override
-    message for the frontend to surface. Returns None otherwise. Never
-    blocks the caller's save either way -- see app/crisis_detection.py and
-    protocols/03_Crisis_Escalation_Protocol.md.
-    """
-    tier = classify_crisis_tier(combined_text)
-    if not requires_override(tier):
-        return None
-    db.add(FlaggedEvent(user_id=user_id, trigger_phrase_matched=tier.value))
-    return override_message(tier)
+    """Thin alias -- the real implementation moved to app/track_b.py so
+    Edin's tool-calling (see app/edin_tools.py) runs the exact same check
+    on every write path, not a second copy that could drift. Kept here so
+    every existing route call site below doesn't need touching."""
+    return run_track_b(db, user_id, combined_text)
 
 
 def _verify_goal_ownership(db: Session, user_id: UUID, goal_id: UUID) -> None:
@@ -114,28 +108,15 @@ def _verify_goal_ownership(db: Session, user_id: UUID, goal_id: UUID) -> None:
 
 
 def _display_name(db: Session, user_id: UUID) -> str | None:
-    """The user's own display_name (Profile), if they've set one -- passed
-    into every generate_* reflection call below so Edin actually knows who
-    she's talking to, on every surface, not just the coach dashboard's
-    client list (the only place this column was read before)."""
-    profile = db.query(Profile).filter(Profile.id == user_id).first()
-    return profile.display_name if profile else None
+    """Thin alias -- moved to app/user_context.py so the new tool modules
+    (app/dream_journal_tools.py, etc.) can reuse it too. Kept here so
+    every existing call site below doesn't need touching."""
+    return display_name(db, user_id)
 
 
 def _confirmed_tags(db: Session, client_id: UUID, tags: list[str]) -> list[str]:
-    """Which of `tags` a coach has validated for this user -- see
-    app/models.py's SymbolValidation and the /coach/clients/{id}/
-    symbol-validations routes below. Passed into generate_dream_reflection
-    so Edin is told, per-tag, what's actually confirmed vs. still
-    tentative (protocols/11_Coherence_Dream_Criteria_Tagging_Density.md)."""
-    if not tags:
-        return []
-    rows = (
-        db.query(SymbolValidation.tag)
-        .filter(SymbolValidation.client_id == client_id, SymbolValidation.tag.in_(tags))
-        .all()
-    )
-    return [row.tag for row in rows]
+    """Thin alias -- see _display_name above for why."""
+    return confirmed_tags(db, client_id, tags)
 
 
 def _supabase_project_ref() -> str | None:
@@ -696,8 +677,8 @@ def send_chat_message(
             reply_text, tool_calls = generate_chat_reply_with_tools(
                 [{"role": m.role, "content": m.content} for m in history],
                 context,
-                neuron_tools.NEURON_TOOL_DECLARATIONS,
-                neuron_tools.make_tool_executor(db, user_id, payload.node_key),
+                edin_tools.ALL_TOOL_DECLARATIONS,
+                edin_tools.build_tool_executor(db, user_id, payload.node_key),
                 user_name=_display_name(db, user_id),
             )
         except EdinAIError as exc:

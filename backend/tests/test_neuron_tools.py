@@ -15,7 +15,8 @@ def test_executor_refuses_to_act_with_no_open_node():
     assert "no body-map node" in result["error"].lower()
 
 
-def test_executor_rejects_unknown_tool_name():
+def test_executor_returns_none_for_tools_outside_its_domain():
+    # None (not an error) is the "not my tool" signal the aggregator in
+    # app/edin_tools.py relies on to try the next domain's executor.
     execute = make_tool_executor(db=None, user_id=None, node_key="body-signal:nervous__cns__0")
-    result = execute("delete_everything", {})
-    assert result == {"error": "Unknown tool: delete_everything"}
+    assert execute("create_goal", {"name": "x"}) is None

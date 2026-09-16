@@ -115,11 +115,16 @@ def make_tool_executor(db: Session, user_id: UUID, node_key: str | None):
     """Returns a (name, args) -> dict callable bound to this request's db
     session, user, and current node -- the node_key the frontend says the
     user has open, never one Edin supplies herself. If no node is open,
-    both tools return an explanatory error instead of silently doing
+    these two tools return an explanatory error instead of silently doing
     nothing, so Edin can tell the user to open a node first rather than
-    claiming she saved something she didn't."""
+    claiming she saved something she didn't. Returns None for any tool
+    name that isn't one of this domain's own -- see app/edin_tools.py's
+    aggregator, which tries each domain's executor in turn."""
 
-    def execute(name: str, args: dict) -> dict:
+    def execute(name: str, args: dict) -> dict | None:
+        if name not in ("save_neuron_record", "log_neuron_practice"):
+            return None
+
         if not node_key:
             return {"error": "No body-map node is currently open, so there's nothing to save this to yet."}
 
@@ -130,10 +135,7 @@ def make_tool_executor(db: Session, user_id: UUID, node_key: str | None):
             record = upsert_neuron_record(db, user_id, node_key, **args)
             return {"saved": True, "record": _record_to_dict(record)}
 
-        if name == "log_neuron_practice":
-            record = log_neuron_practice(db, user_id, node_key)
-            return {"logged": True, "record": _record_to_dict(record)}
-
-        return {"error": f"Unknown tool: {name}"}
+        record = log_neuron_practice(db, user_id, node_key)
+        return {"logged": True, "record": _record_to_dict(record)}
 
     return execute

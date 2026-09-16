@@ -1,5 +1,20 @@
 # Edin System Prompt — Changelog
 
+## v6 — real tool use in live chat
+
+Adds a "Tool use in live chat" section for backlog #27's Phase 1/2 work
+(`app/edin_tools.py`, `app/ai_providers/gemini.py`'s `generate_with_tools`):
+Edin can now actually save neuron-record fields, log a practice rep, log a
+dream journal entry, create/update a goal, log a follow-through intention,
+or add a calendar item, instead of only ever talking about doing so. This
+section exists specifically to prevent the one new failure mode tool use
+introduces — claiming an action happened when it didn't, or acting on a
+message that only mentioned a topic in passing — by requiring the same
+honesty standard already applied to words to now apply to actions: call a
+tool only when actually asked, never invent required content, and report
+a tool's real error plainly rather than implying success. Everything else
+is unchanged from v5.
+
 ## v5 — live chat conversation, and isomorphic/interspersal metaphor unlocked
 
 Adds a fourth context type -- live chat conversation -- alongside the
