@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app import edin_tools, neuron_tools
@@ -580,6 +580,28 @@ def delete_neuron_record(node_key: str, db: Session = Depends(get_db), user_id: 
 # Chat (Edin — Available Anywhere)
 # ---------------------------------------------------------------------------
 
+def _describe_node_key(node_key: str) -> str:
+    """A plain-language rendering of a body-map node_key for Edin's chat
+    context -- "body-signal:nervous__cns__2" becomes "nervous > cns >
+    signal 3". Deliberately not the real system/substructure display
+    labels (those live only in frontend/src/features/library/data/
+    bodySystems.js) -- mirroring that data into the backend just to
+    prettify a chat summary would be the same "two copies that can drift"
+    problem this session already fixed for Track B and user context, for
+    a label that's cosmetic, not load-bearing. The raw key segments are
+    still readable enough for Edin to reference a node meaningfully."""
+    if ":" not in node_key:
+        return node_key
+    layer, rest = node_key.split(":", 1)
+    parts = rest.split("__")
+    if layer == "body-signal" and len(parts) == 3:
+        system, sub, idx = parts
+        return f"{system} > {sub} > signal {int(idx) + 1}"
+    if layer == "body-sub" and len(parts) == 2:
+        return f"{parts[0]} > {parts[1]}"
+    return " > ".join(parts) if len(parts) > 1 else rest
+
+
 def _chat_context_summary(db: Session, user_id: UUID) -> str:
     """Brief, real context about this account for Edin's live chat --
     not full tool use (that's a bigger future project, see task #27 in
@@ -618,6 +640,31 @@ def _chat_context_summary(db: Session, user_id: UUID) -> str:
             f"Most recent follow-through entry: \"{latest_follow_through.intention}\" "
             f"— status: {latest_follow_through.status}."
         )
+
+    # Body-map nodes with real story/skill content -- without this, Edin
+    # has zero memory of anything saved to the Genius Profile map unless
+    # the user brings that exact node up again in the same conversation,
+    # even though it's some of the most personal real data in the account.
+    real_neuron_records = (
+        db.query(NeuronRecord)
+        .filter(
+            NeuronRecord.user_id == user_id,
+            or_(
+                NeuronRecord.story.isnot(None),
+                NeuronRecord.skill.isnot(None),
+                NeuronRecord.practice_goal.isnot(None),
+            ),
+        )
+        .order_by(NeuronRecord.updated_at.desc())
+        .limit(5)
+        .all()
+    )
+    if real_neuron_records:
+        node_lines = []
+        for r in real_neuron_records:
+            bits = [f'"{r.story}"' if r.story else None, f"skill: {r.skill}" if r.skill else None, f"working on: {r.practice_goal}" if r.practice_goal else None]
+            node_lines.append(f"{_describe_node_key(r.node_key)} ({r.progress_state}) -- " + ", ".join(b for b in bits if b))
+        parts.append("Body-map nodes with real saved content, most recently updated first: " + "; ".join(node_lines) + ".")
 
     return " ".join(parts) if parts else "No real account data logged yet for this user."
 
