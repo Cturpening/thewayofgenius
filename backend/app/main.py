@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
-from app import edin_tools, neuron_tools
+from app import constitution_tools, edin_tools, neuron_tools
 from app.auth import get_current_coach_id, get_current_user_id
 from app.track_b import run_track_b
 from app.user_context import confirmed_tags, display_name
@@ -16,7 +16,6 @@ from app.database import engine, get_db
 from app.edin_ai import (
     EdinAIError,
     generate_chat_reply_with_tools,
-    generate_constitution_reflection,
     generate_dream_reflection,
     generate_follow_through_reflection,
     is_configured as edin_ai_configured,
@@ -326,27 +325,12 @@ def update_constitution_result(
         raise HTTPException(status_code=404, detail="Genius Constitution result not found")
 
     updates = payload.model_dump(exclude_unset=True)
-    # `intention` is freeform text (see schemas.ConstitutionResultUpdate) --
-    # same as every other freeform field in this app, it goes through
-    # Track B before being saved. This was previously missed entirely.
-    crisis_response = _run_track_b(db, user_id, updates["intention"]) if updates.get("intention") else None
+    if not updates.get("intention"):
+        # Nothing to set -- same no-op-ish shape as every other PATCH route
+        # here when the caller sends an empty/unset payload.
+        return ConstitutionResultUpdateResponse(result=ConstitutionResultOut.model_validate(result), crisis_response=None)
 
-    if crisis_response:
-        # Track B fires -- no AI call, same rule as everywhere else in this app.
-        updates["edin_note"] = None
-    elif updates.get("intention") and edin_ai_configured():
-        try:
-            updates["edin_note"] = generate_constitution_reflection(
-                result.dominant_orientation, updates["intention"], user_name=_display_name(db, user_id)
-            )
-        except EdinAIError as exc:
-            logger.warning("AI reflection failed: %s", exc)
-            updates["edin_note"] = "Edin's reflection isn't available right now — try saving this intention again in a bit."
-
-    for field, value in updates.items():
-        setattr(result, field, value)
-    db.commit()
-    db.refresh(result)
+    result, crisis_response = constitution_tools.set_intention(db, user_id, result=result, intention=updates["intention"])
     return ConstitutionResultUpdateResponse(result=ConstitutionResultOut.model_validate(result), crisis_response=crisis_response)
 
 

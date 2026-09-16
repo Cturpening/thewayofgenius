@@ -42,4 +42,5 @@ def test_the_whole_toolbox_is_registered():
         "update_follow_through_status",
         "list_open_follow_throughs",
         "add_calendar_event",
+        "set_constitution_intention",
     }

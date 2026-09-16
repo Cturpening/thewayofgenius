@@ -1,5 +1,21 @@
 # Edin System Prompt — Changelog
 
+## v10 — the Genius Constitution joins the toolbox
+
+Adds set_constitution_intention (app/constitution_tools.py): Edin can now
+set or update the real intention on a user's most recent Genius
+Constitution result conversationally, the same single editable field the
+existing PATCH /genius-constitution-results/{id} route already exposed --
+that route now shares the same write path instead of its own inline copy
+of the Track B + reflection-generation logic. This closes the last major
+real-data surface in the app that had zero tool coverage: neuron records,
+dream journal, goals, follow-through, calendar, and now the Constitution
+are all reachable conversationally. Only wording addition to the "Tool
+use in live chat" list; every actual rule (call only when asked, notice
+and offer, never claim success without calling, prefer reading/listing
+over guessing) already covers this tool the same as every other one.
+Everything else is unchanged from v9.
+
 ## v9 — read before you build on top of something
 
 Adds two read-only lookups (app/neuron_tools.py's get_current_node_record,

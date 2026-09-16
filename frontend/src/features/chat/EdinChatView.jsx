@@ -23,6 +23,7 @@ const TOOL_CALL_LABELS = {
   log_follow_through: "Logged a follow-through intention",
   update_follow_through_status: "Updated a follow-through intention",
   add_calendar_event: "Added a calendar event",
+  set_constitution_intention: "Updated your Constitution intention",
 };
 
 // `compact`: used by the floating "Edin -- Available Anywhere" popup (see

@@ -1,10 +1,10 @@
 """Edin's whole toolbox -- the single place app/main.py's chat route
 reaches into for "what can she actually do." Each domain (neuron records,
-dream journal, goals, follow-through, calendar) owns its own real write
-logic and its own tool declarations in its own module; this file only
-combines them, so adding a new tool later means writing one new small
-domain module and adding two lines here, not touching the chat route or
-the Gemini-calling loop at all.
+dream journal, goals, follow-through, calendar, constitution) owns its
+own real write logic and its own tool declarations in its own module;
+this file only combines them, so adding a new tool later means writing
+one new small domain module and adding two lines here, not touching the
+chat route or the Gemini-calling loop at all.
 
 Every domain executor follows the same contract: (name, args) -> dict on
 a tool it recognizes, or None to mean "not mine, try the next one." A
@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app import calendar_tools, dream_journal_tools, follow_through_tools, goal_tools, neuron_tools
+from app import calendar_tools, constitution_tools, dream_journal_tools, follow_through_tools, goal_tools, neuron_tools
 
 ALL_TOOL_DECLARATIONS = [
     *neuron_tools.NEURON_TOOL_DECLARATIONS,
@@ -25,6 +25,7 @@ ALL_TOOL_DECLARATIONS = [
     *goal_tools.TOOL_DECLARATIONS,
     *follow_through_tools.TOOL_DECLARATIONS,
     *calendar_tools.TOOL_DECLARATIONS,
+    *constitution_tools.TOOL_DECLARATIONS,
 ]
 
 
@@ -39,6 +40,7 @@ def build_tool_executor(db: Session, user_id: UUID, node_key: str | None):
         goal_tools.make_executor(db, user_id),
         follow_through_tools.make_executor(db, user_id),
         calendar_tools.make_executor(db, user_id),
+        constitution_tools.make_executor(db, user_id),
     ]
 
     def execute(name: str, args: dict) -> dict:
