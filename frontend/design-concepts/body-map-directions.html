@@ -1,0 +1,234 @@
+<title>Body Map Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d13;
+    --panel: #12161f;
+    --panel-2: #171c27;
+    --line: #262e3d;
+    --ink: #e9e6df;
+    --ink-dim: #8b93a4;
+    --gold: #e0b15c;
+    --teal: #4fb8ad;
+    --coral: #e0776a;
+    --violet: #9a86dd;
+  }
+  /* This page commits to one dark, "specimen under glass" world on purpose --
+     it's a same-room design pitch, not a public page, and the whole point is
+     to sit next to the app's own space/hologram palette. */
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Manrope', system-ui, sans-serif;
+    margin: 0;
+    padding-inline: 20px;
+    padding-block: 40px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(28px, 4.4vw, 42px);
+    line-height: 1.15;
+    margin: 10px 0 0;
+    text-wrap: balance;
+    max-width: 16ch;
+  }
+  .sub {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-dim);
+    max-width: 62ch;
+    margin-top: 14px;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 760px) {
+    .options { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    color: var(--ink-dim);
+  }
+  .card-tag b { color: var(--ink); font-weight: 500; }
+  .card h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 500;
+    font-size: 21px;
+    margin: -8px 0 0;
+  }
+  .stage {
+    background: radial-gradient(ellipse at 50% 38%, rgba(224,177,92,0.10), var(--bg) 72%);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+  .stage svg { width: 100%; height: auto; max-width: 340px; display: block; }
+  .caption {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-dim);
+  }
+  .caption b { color: var(--ink); font-weight: 600; }
+
+  .shared {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px 24px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .shared .eyebrow { margin-bottom: 8px; }
+
+  .ask {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 19px;
+    color: var(--ink);
+    border-top: 1px solid var(--line);
+    padding-top: 24px;
+  }
+  .ask span { color: var(--gold); }
+</style>
+
+<div class="wrap">
+  <div>
+    <div class="eyebrow">The Way of Genius — Body Systems Map</div>
+    <h1>Two ways to make this read as one body</h1>
+    <p class="sub">Right now the 11 systems sit as separate blobs placed around a center point — technically organized, but it doesn't read as a body. Both directions below fix that the same way: everything anchors to one silhouette instead of floating apart from it. The difference is what kind of anchor.</p>
+  </div>
+
+  <div class="options">
+    <div class="card">
+      <div class="card-tag"><b>OPTION A</b> — LAYERED DISSECTION</div>
+      <h2>Exploded anatomy</h2>
+      <div class="stage">
+        <svg viewBox="0 0 400 460" fill="none">
+          <!-- ghost outer layer: integumentary, faint full silhouette -->
+          <g opacity="0.28" transform="translate(18,-10)">
+            <ellipse cx="200" cy="56" rx="35" ry="40" stroke="#8b93a4" stroke-width="1.4"/>
+            <path d="M200 96 L200 346 M140 146 Q120 213 133 306 M260 146 Q280 213 266 306 M173 346 L157 413 M227 346 L242 413" stroke="#8b93a4" stroke-width="1.4"/>
+            <path d="M157 133 Q200 120 243 133 L253 306 Q200 326 147 306 Z" stroke="#8b93a4" stroke-width="1.2"/>
+          </g>
+          <!-- muscular layer -->
+          <g opacity="0.55" transform="translate(9,-4)">
+            <ellipse cx="200" cy="56" rx="33" ry="38" stroke="var(--coral)" stroke-width="1.5"/>
+            <path d="M200 96 L200 346 M143 148 Q124 213 136 302 M257 148 Q276 213 264 302" stroke="var(--coral)" stroke-width="1.5"/>
+            <path d="M160 136 Q200 124 240 136 L249 302 Q200 320 151 302 Z" fill="var(--coral)" fill-opacity="0.08" stroke="var(--coral)" stroke-width="1.3"/>
+          </g>
+          <!-- organ cluster layer -->
+          <g transform="translate(0,4)">
+            <path d="M163 140 Q200 129 237 140 L245 298 Q200 314 155 298 Z" fill="var(--panel)" stroke="#3a4356" stroke-width="1.2"/>
+            <ellipse cx="182" cy="178" rx="16" ry="20" fill="var(--teal)" fill-opacity="0.35" stroke="var(--teal)" stroke-width="1.3"/>
+            <ellipse cx="216" cy="182" rx="14" ry="17" fill="var(--coral)" fill-opacity="0.35" stroke="var(--coral)" stroke-width="1.3"/>
+            <ellipse cx="200" cy="232" rx="19" ry="24" fill="var(--gold)" fill-opacity="0.3" stroke="var(--gold)" stroke-width="1.3"/>
+            <ellipse cx="200" cy="280" rx="13" ry="14" fill="var(--violet)" fill-opacity="0.3" stroke="var(--violet)" stroke-width="1.2"/>
+          </g>
+          <!-- skeletal core, innermost, offset toward viewer -->
+          <g transform="translate(-9,10)">
+            <ellipse cx="200" cy="56" rx="18" ry="21" stroke="var(--gold)" stroke-width="1.6"/>
+            <path d="M200 78 L200 320" stroke="var(--gold)" stroke-width="1.8"/>
+            <path d="M180 118 L220 118 M176 138 L224 138 M174 158 L226 158 M176 178 L224 178" stroke="var(--gold)" stroke-width="1.2" opacity="0.7"/>
+            <path d="M200 320 L184 400 M200 320 L216 400" stroke="var(--gold)" stroke-width="1.6"/>
+          </g>
+          <!-- nervous system thread, running through every layer -->
+          <path d="M200 40 Q205 90 200 130 Q193 170 202 210 Q210 250 196 290 Q188 320 200 346" stroke="var(--violet)" stroke-width="1.3" opacity="0.85"/>
+          <path d="M200 130 Q160 145 138 150 M202 210 Q245 220 262 214 M196 290 Q165 300 150 296" stroke="var(--violet)" stroke-width="1" opacity="0.55"/>
+          <!-- leader lines tying the peeled layers back to one body -->
+          <path d="M120 100 L155 128" stroke="#3a4356" stroke-width="1" stroke-dasharray="2 3"/>
+          <path d="M290 100 L245 128" stroke="#3a4356" stroke-width="1" stroke-dasharray="2 3"/>
+        </svg>
+      </div>
+      <div class="caption">One silhouette, pulled apart into layers you can see through — skin, muscle, organs, skeleton — the way it reads at Body Worlds. <b>The nervous system runs as one continuous thread through every layer</b>, which is what keeps it feeling like one body instead of four separate ones.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-tag"><b>OPTION B</b> — SACRED GEOMETRY</div>
+      <h2>Radial mandala</h2>
+      <div class="stage">
+        <svg viewBox="0 0 400 460" fill="none">
+          <g opacity="0.4">
+            <ellipse cx="200" cy="56" rx="35" ry="40" stroke="#8b93a4" stroke-width="1.3"/>
+            <path d="M200 96 L200 346 M140 146 Q120 213 133 306 M260 146 Q280 213 266 306 M173 346 L157 413 M227 346 L242 413" stroke="#8b93a4" stroke-width="1.3"/>
+          </g>
+          <!-- flower-of-life style overlapping rings, centered on the torso -->
+          <g opacity="0.5">
+            <circle cx="200" cy="210" r="95" stroke="var(--gold)" stroke-width="1"/>
+            <circle cx="200" cy="210" r="66" stroke="var(--gold)" stroke-width="1"/>
+            <circle cx="200" cy="210" r="37" stroke="var(--gold)" stroke-width="1"/>
+            <circle cx="200" cy="123" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.55"/>
+            <circle cx="200" cy="297" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.55"/>
+            <circle cx="143" cy="167" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.4"/>
+            <circle cx="257" cy="167" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.4"/>
+            <circle cx="143" cy="253" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.4"/>
+            <circle cx="257" cy="253" r="66" stroke="var(--gold)" stroke-width="0.8" opacity="0.4"/>
+          </g>
+          <!-- 11 system nodes placed at ring intersections, connected radially -->
+          <g stroke-width="1" opacity="0.6">
+            <path d="M200 60 L200 145" stroke="var(--violet)"/>
+            <path d="M200 145 L155 172" stroke="var(--teal)"/>
+            <path d="M200 145 L245 172" stroke="var(--coral)"/>
+            <path d="M155 172 L145 210" stroke="var(--gold)"/>
+            <path d="M245 172 L255 210" stroke="var(--gold)"/>
+            <path d="M145 210 L166 244" stroke="var(--teal)"/>
+            <path d="M255 210 L234 244" stroke="var(--coral)"/>
+            <path d="M166 244 L200 265" stroke="var(--gold)"/>
+            <path d="M234 244 L200 265" stroke="var(--gold)"/>
+            <path d="M200 265 L184 305" stroke="var(--violet)"/>
+            <path d="M200 265 L216 305" stroke="var(--violet)"/>
+          </g>
+          <circle cx="200" cy="60" r="6" fill="var(--violet)"/>
+          <circle cx="200" cy="145" r="5.5" fill="var(--gold)"/>
+          <circle cx="155" cy="172" r="5.5" fill="var(--teal)"/>
+          <circle cx="245" cy="172" r="5.5" fill="var(--coral)"/>
+          <circle cx="145" cy="210" r="5" fill="var(--gold)"/>
+          <circle cx="255" cy="210" r="5" fill="var(--gold)"/>
+          <circle cx="166" cy="244" r="5" fill="var(--teal)"/>
+          <circle cx="234" cy="244" r="5" fill="var(--coral)"/>
+          <circle cx="200" cy="265" r="5.5" fill="var(--gold)"/>
+          <circle cx="184" cy="305" r="5" fill="var(--violet)"/>
+          <circle cx="216" cy="305" r="5" fill="var(--violet)"/>
+        </svg>
+      </div>
+      <div class="caption">One silhouette with the 11 systems placed at the intersections of a real sacred-geometry pattern (flower-of-life rings) centered on the body — geometric and symmetrical, but every point still sits on or inside the body, not scattered around it.</div>
+    </div>
+  </div>
+
+  <div class="shared">
+    <div class="eyebrow">Either way, the controls don't change</div>
+    Both directions use the same interaction underneath: click a point, a box opens on the right — every time, every layer, no exceptions. Turning the view is left/right/up/down buttons, not a mouse drag. Zoom is +/− buttons. Nothing moves unless you click something. The only thing this page is deciding is which shape the systems live on.
+  </div>
+
+  <div class="ask">Which one, <span>A or B</span> — or does neither actually feel right yet?</div>
+</div>
