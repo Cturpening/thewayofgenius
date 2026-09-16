@@ -57,6 +57,26 @@ const SYSTEM_LINKS = [
   ["urinary", "cardiovascular"],
 ];
 
+// Real (if brief) reason each SYSTEM_LINKS pair is actually linked --
+// shown when you tap the connecting line itself, so the gold lines are
+// real clickable content, not just decoration.
+const SYSTEM_LINK_BLURB = {
+  "nervous|endocrine": "The HPA axis -- the nervous system triggers the hormonal stress response, and hormones feed back to shape nervous system activity in return.",
+  "nervous|muscular": "Motor control -- a nerve signal is what actually triggers a muscle to contract.",
+  "cardiovascular|respiratory": "Gas exchange -- the heart and lungs work as one loop, trading oxygen for carbon dioxide every cycle.",
+  "cardiovascular|lymphatic": "Fluid balance -- the lymphatic system returns fluid the bloodstream leaves behind back into circulation.",
+  "digestive|lymphatic": "Gut immune surveillance -- most of the body's immune tissue actually lines the digestive tract.",
+  "digestive|urinary": "Waste processing -- two different systems, the same underlying job of deciding what the body releases.",
+  "endocrine|reproductive": "Hormonal drive -- the reproductive system runs almost entirely on signals from the endocrine system.",
+  "integumentary|lymphatic": "First line of defense -- skin is the physical barrier, the immune system is what backs it up.",
+  "skeletal|muscular": "Structural movement -- muscles only create motion by pulling against bone.",
+  "skeletal|endocrine": "Bone marrow and calcium -- bone is hormonally regulated tissue, and it's where blood cells are actually made.",
+  "urinary|cardiovascular": "Blood filtration -- the kidneys filter the entire blood supply continuously, not just occasionally.",
+};
+function systemLinkBlurb(aKey, bKey) {
+  return SYSTEM_LINK_BLURB[`${aKey}|${bKey}`] || SYSTEM_LINK_BLURB[`${bKey}|${aKey}`] || "Two systems that regularly show up together in real physiology.";
+}
+
 // heightFrac/cy both run head-to-foot (0/low = head, 1/high = feet) --
 // this shared mapping is what lets the symbolic points (BODY_SYMBOLS) and
 // the real physiological systems (BODY_SYSTEMS) line up on the same
@@ -152,6 +172,20 @@ function RegionLabel({ offset, text, palette }) {
   );
 }
 
+// A plain <Line> is nearly impossible to click precisely -- its hit area
+// is essentially the thin visible stroke. Pairs the real visible line with
+// an invisible, much fatter one purely for hit-testing, so every
+// connection line becomes a real clickable node too, not just decoration
+// you can look at but not tap.
+function ClickableLink({ id, from, to, color, dashed, isSelected, onSelect }) {
+  return (
+    <group onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
+      <Line points={[from, to]} color={color} transparent opacity={0.02} lineWidth={16} />
+      <Line points={[from, to]} color={color} transparent opacity={isSelected ? 0.9 : 0.5} lineWidth={isSelected ? 2.4 : 1.3} dashed={dashed} dashSize={0.15} gapSize={0.1} />
+    </group>
+  );
+}
+
 function ArchitectureRegion({ selected, onSelect, palette }) {
   const offset = REGION_OFFSET.architecture;
   const positions = useMemo(() => {
@@ -162,20 +196,23 @@ function ArchitectureRegion({ selected, onSelect, palette }) {
 
   return (
     <group position={offset}>
-      <mesh>
-        <icosahedronGeometry args={[0.65, 1]} />
-        <meshBasicMaterial color={COLORS.gold} transparent opacity={0.3} />
-      </mesh>
-      <mesh>
-        <icosahedronGeometry args={[0.9, 1]} />
-        <meshBasicMaterial color={COLORS.gold} wireframe transparent opacity={0.6} />
-      </mesh>
+      <group onClick={(e) => { e.stopPropagation(); onSelect("region:architecture"); }}>
+        <mesh>
+          <icosahedronGeometry args={[0.65, 1]} />
+          <meshBasicMaterial color={COLORS.gold} transparent opacity={selected === "region:architecture" ? 0.5 : 0.3} />
+        </mesh>
+        <mesh>
+          <icosahedronGeometry args={[0.9, 1]} />
+          <meshBasicMaterial color={COLORS.gold} wireframe transparent opacity={selected === "region:architecture" ? 0.9 : 0.6} />
+        </mesh>
+      </group>
       {PROFILE_NODES.map((n) => (
         <Line key={n.key + "-spoke"} points={[[0, 0, 0], positions[n.key]]} color={n.color} transparent opacity={n.status === "planned" ? 0.15 : 0.35} lineWidth={1} />
       ))}
-      {CROSS_LINKS.map((link, i) => (
-        <Line key={i} points={[positions[link.from], positions[link.to]]} color={link.color} transparent opacity={0.5} lineWidth={1.3} dashed dashSize={0.15} gapSize={0.1} />
-      ))}
+      {CROSS_LINKS.map((link, i) => {
+        const linkId = `link:arch__${link.from}__${link.to}`;
+        return <ClickableLink key={i} id={linkId} from={positions[link.from]} to={positions[link.to]} color={link.color} dashed isSelected={selected === linkId} onSelect={onSelect} />;
+      })}
       {PROFILE_NODES.map((n) => (
         <MapNode key={n.key} id={`architecture:${n.key}`} label={n.label} color={n.color} position={positions[n.key]} pulsing={n.status === "live"} isSelected={selected === `architecture:${n.key}`} onSelect={onSelect} palette={palette} />
       ))}
@@ -266,19 +303,25 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
 
   const systemPositions = computeSystemPositions();
   const { layer: selLayer, systemKey: openSystemKey, subKey: openSubKey } = parseBodySelection(selected);
-  const activeSystemKey = ["body-system", "body-sub", "body-signal"].includes(selLayer) ? openSystemKey : null;
+  // Gated on bodyView too, not just the selection id -- otherwise a system
+  // left open in Systems view stays "active" (hiding the spine) even after
+  // switching to Symbolic view, since switching views doesn't clear selection.
+  const activeSystemKey = bodyView === "systems" && ["body-system", "body-sub", "body-signal"].includes(selLayer) ? openSystemKey : null;
 
   return (
     <group position={offset}>
       {!activeSystemKey && (
-        <>
-          {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
-          <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
+        <group onClick={(e) => { e.stopPropagation(); onSelect("region:body"); }}>
+          {/* Simple spine + head indicator so the points read as "on a body," not floating at
+              random -- also itself a clickable node for a Body overview. Invisible fat line
+              underneath the visible thin spine makes it actually clickable, not just visible. */}
+          <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.02} lineWidth={16} />
+          <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={selected === "region:body" ? COLORS.coral : COLORS.grid} transparent opacity={0.5} lineWidth={selected === "region:body" ? 2 : 1} />
           <mesh position={[0, SPINE_TOP + 0.2, 0]}>
             <sphereGeometry args={[0.35, 12, 12]} />
-            <meshBasicMaterial color={COLORS.grid} wireframe transparent opacity={0.5} />
+            <meshBasicMaterial color={selected === "region:body" ? COLORS.coral : COLORS.grid} wireframe transparent opacity={0.5} />
           </mesh>
-        </>
+        </group>
       )}
 
       {bodyView === "symbolic" && BODY_SYMBOLS.map((s) => (
@@ -291,7 +334,8 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
             const a = systemPositions.find((s) => s.key === aKey);
             const b = systemPositions.find((s) => s.key === bKey);
             if (!a || !b) return null;
-            return <Line key={i} points={[a.position, b.position]} color={COLORS.gold} transparent opacity={0.45} lineWidth={1} dashed dashSize={0.12} gapSize={0.08} />;
+            const linkId = `link:body__${aKey}__${bKey}`;
+            return <ClickableLink key={i} id={linkId} from={a.position} to={b.position} color={COLORS.gold} dashed isSelected={selected === linkId} onSelect={onSelect} />;
           })}
 
           {systemPositions.filter((s) => !activeSystemKey || s.key === activeSystemKey).map((s) => {
@@ -352,14 +396,16 @@ function TeamRegion({ teamMembers, selected, onSelect, palette }) {
 
   return (
     <group position={offset}>
-      <mesh>
-        <icosahedronGeometry args={[0.5, 1]} />
-        <meshBasicMaterial color={COLORS.violet} transparent opacity={0.3} />
-      </mesh>
-      <mesh>
-        <icosahedronGeometry args={[0.7, 1]} />
-        <meshBasicMaterial color={COLORS.violet} wireframe transparent opacity={0.6} />
-      </mesh>
+      <group onClick={(e) => { e.stopPropagation(); onSelect("region:team"); }}>
+        <mesh>
+          <icosahedronGeometry args={[0.5, 1]} />
+          <meshBasicMaterial color={COLORS.violet} transparent opacity={selected === "region:team" ? 0.5 : 0.3} />
+        </mesh>
+        <mesh>
+          <icosahedronGeometry args={[0.7, 1]} />
+          <meshBasicMaterial color={COLORS.violet} wireframe transparent opacity={selected === "region:team" ? 0.9 : 0.6} />
+        </mesh>
+      </group>
       {teamMembers.map((m) => (
         <Line key={m.id + "-spoke"} points={[[0, 0, 0], positions[m.id]]} color={m.color} transparent opacity={0.4} lineWidth={1} />
       ))}
@@ -581,6 +627,74 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
         </div>
       </>
     );
+  } else if (selLayer === "region") {
+    if (selKey === "architecture") {
+      const counts = ["live", "illustrative", "planned"].map((status) => PROFILE_NODES.filter((n) => n.status === status).length);
+      panel = (
+        <>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: COLORS.gold, marginBottom: 10 }}>Architecture — Overview</div>
+          <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 14, lineHeight: 1.5 }}>
+            What the app is actually built on right now, honestly labeled by how real each piece is. Tap
+            any point to see it, or a dashed line to see why two pieces are connected.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {[["Live", counts[0], COLORS.teal], ["Illustrative", counts[1], COLORS.gold], ["Planned", counts[2], COLORS.inkDim]].map(([label, val, color]) => (
+              <div key={label} style={{ background: COLORS.bgPanelAlt, borderRadius: 8, padding: "8px 14px", textAlign: "center" }}>
+                <div style={{ fontSize: 17, color, fontFamily: "Georgia, serif" }}>{val}</div>
+                <div style={{ fontSize: 9.5, color: COLORS.inkDim }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      );
+    } else if (selKey === "team") {
+      const front = teamMembers.filter((m) => m.mode === "front").length;
+      panel = (
+        <>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: COLORS.violet, marginBottom: 10 }}>Inner Team — Overview</div>
+          <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+            {teamMembers.length} member{teamMembers.length === 1 ? "" : "s"} right now -- {front} front-space,{" "}
+            {teamMembers.length - front} running in the background. Tap any member to see their role and
+            current task.
+          </div>
+        </>
+      );
+    } else if (selKey === "body") {
+      panel = (
+        <>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: COLORS.coral, marginBottom: 10 }}>Body — Overview</div>
+          <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+            Two ways to look at the same body: Symbolic (illustrative chakra-style points from your dream
+            imagery) and Body Systems (the real 11 physiological systems, each with real substructures and
+            signal points beneath it). Switch between them with the toggle above the map.
+          </div>
+        </>
+      );
+    }
+  } else if (selLayer === "link") {
+    const [scope, aKey, bKey] = selKey.split("__");
+    if (scope === "arch") {
+      const link = CROSS_LINKS.find((l) => (l.from === aKey && l.to === bKey) || (l.from === bKey && l.to === aKey));
+      const a = PROFILE_NODES.find((x) => x.key === aKey);
+      const b = PROFILE_NODES.find((x) => x.key === bKey);
+      if (link && a && b) panel = (
+        <>
+          <div style={{ fontSize: 9, color: link.color, letterSpacing: 0.4, marginBottom: 6 }}>CONNECTION</div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 17, color: link.color, marginBottom: 10 }}>{a.label} ↔ {b.label}</div>
+          <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>{link.label}</div>
+        </>
+      );
+    } else if (scope === "body") {
+      const a = BODY_SYSTEMS.find((x) => x.key === aKey);
+      const b = BODY_SYSTEMS.find((x) => x.key === bKey);
+      if (a && b) panel = (
+        <>
+          <div style={{ fontSize: 9, color: COLORS.gold, letterSpacing: 0.4, marginBottom: 6 }}>CONNECTION — REFERENCE</div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 17, color: COLORS.gold, marginBottom: 10 }}>{a.label} ↔ {b.label}</div>
+          <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>{systemLinkBlurb(aKey, bKey)}</div>
+        </>
+      );
+    }
   } else if (selLayer === "team") {
     const m = teamMembers.find((x) => x.id === selKey);
     const modeLabel = { front: "FRONT-SPACE — ACTIVE HELPER", background: "BACKGROUND — DATA RUNNER" };
@@ -605,10 +719,10 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
-        relation to it -- toggle any combination on. Drag to orbit all the way around, scroll to zoom, tap
-        a point to select it -- a plain click won't spin the view out from under you. In Body Systems view,
-        gold lines show how the systems actually relate; use the jump menu or breadcrumb below the map to
-        move between layers any time -- you're never stuck without a way back.
+        relation to it -- toggle any combination on. Drag to orbit all the way around, scroll to zoom.
+        Everything here is real content on tap: every node, every connecting line, even the big center
+        hub of each region opens its own box on the right. In Body Systems view, use the jump menu or
+        breadcrumb below the map to move between layers any time -- you're never stuck without a way back.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
