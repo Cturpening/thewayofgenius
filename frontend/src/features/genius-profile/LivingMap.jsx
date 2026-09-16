@@ -37,32 +37,37 @@ const REGION_LABEL = {
   team: "Inner Team",
 };
 
-// Subtle continuous look-around driven by mouse position anywhere over the
-// canvas, not just while dragging -- layered on top of OrbitControls
-// (which still owns deliberate drag-to-orbit/scroll-to-zoom) by tilting
-// the world content itself rather than fighting OrbitControls for the
-// camera transform.
+// Real mouse-look, not a capped tilt. The earlier version mapped mouse
+// *position* to a target angle (roughly +/-20 degrees) -- bounded by
+// definition, since your cursor can only reach the edge of the screen, so
+// you could never actually turn far enough to see the satellite regions
+// spread out; they stayed compressed near center, reading as "everything
+// on top of itself." This instead accumulates mouse *movement* each frame
+// (like a game's mouse-look), so sustained motion keeps turning the scene
+// all the way around -- true 360 on yaw, clamped only on pitch so you
+// can't flip upside down. Runs continuously (not just while dragging),
+// and OrbitControls' own rotate is turned off below so the two don't
+// fight over the camera.
 function MouseParallax({ children }) {
   const group = useRef();
+  const last = useRef(null);
   useFrame((state) => {
     if (!group.current) return;
-    const targetY = state.pointer.x * 0.35;
-    const targetX = -state.pointer.y * 0.18;
-    group.current.rotation.y += (targetY - group.current.rotation.y) * 0.04;
-    group.current.rotation.x += (targetX - group.current.rotation.x) * 0.04;
+    const { x, y } = state.pointer;
+    if (last.current) {
+      const dx = x - last.current.x;
+      const dy = y - last.current.y;
+      group.current.rotation.y += dx * 1.6;
+      group.current.rotation.x = Math.max(-1.1, Math.min(1.1, group.current.rotation.x - dy * 0.9));
+    }
+    last.current = { x, y };
   });
   return <group ref={group}>{children}</group>;
 }
 
-// Labels only render for the selected node or whichever one the mouse is
-// currently over -- not every node all the time. That "always-on" text was
-// the biggest single source of clutter: a region with a dozen points meant
-// a dozen labels fighting for space regardless of whether anyone cared
-// about most of them yet.
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
   const coreRef = useRef();
-  const [hovered, setHovered] = useState(false);
 
   useFrame((state, delta) => {
     if (shellRef.current) shellRef.current.rotation.y += delta * 0.22;
@@ -73,15 +78,9 @@ function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, on
   });
 
   const scale = (isSelected ? 1.5 : 1) * size;
-  const showLabel = isSelected || hovered;
 
   return (
-    <group
-      position={position}
-      onClick={(e) => { e.stopPropagation(); onSelect(id); }}
-      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-      onPointerOut={() => setHovered(false)}
-    >
+    <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
       <mesh ref={coreRef} scale={scale}>
         <icosahedronGeometry args={[0.38, 1]} />
         <meshBasicMaterial color={color} transparent opacity={0.5} />
@@ -90,13 +89,11 @@ function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, on
         <icosahedronGeometry args={[0.38, 1]} />
         <meshBasicMaterial color={color} wireframe transparent opacity={isSelected ? 0.95 : 0.5} />
       </mesh>
-      {showLabel && (
-        <Billboard position={[0, 0.75 * scale, 0]}>
-          <Text fontSize={0.22} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
-            {label}
-          </Text>
-        </Billboard>
-      )}
+      <Billboard position={[0, 0.75 * scale, 0]}>
+        <Text fontSize={0.22} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
+          {label}
+        </Text>
+      </Billboard>
     </group>
   );
 }
@@ -180,10 +177,30 @@ function bodyHeightFromFrac(frac) {
   return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
 }
 
+// A flat ring of points around a center -- used both for the 8 systems
+// around the spine and for the cell/neuron drill-down rings below.
+function ringPositions(center, radius, count) {
+  return Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * Math.PI * 2;
+    return [center[0] + radius * Math.cos(angle), center[1], center[2] + radius * Math.sin(angle)];
+  });
+}
+
+const CELLS_PER_SYSTEM = 6;
+const NEURONS_PER_CELL = 5;
+
 // The symbolic chakra-style points and the real physiological systems are
 // two full datasets on the same spine -- shown together they read as one
 // overcrowded map instead of two clear ones. bodyView picks which one is
 // actually on screen; the spine itself stays as a shared anchor either way.
+//
+// Within Systems view, "down to cells and neurons" is real drill-down, not
+// a denser default: a system's cells only appear once you select that
+// system, and a cell's neurons only appear once you select that cell --
+// same progressive-disclosure idea as labels-on-select, just one level
+// deeper. Ids: body-system:<key>, body-cell:<systemKey>__<i>,
+// body-neuron:<systemKey>__<i>__<j> ("__" separates parts within a layer
+// so the top-level "layer:key" split on ":" still works).
 function BodyRegion({ selected, onSelect, palette, bodyView }) {
   const offset = REGION_OFFSET.body;
   const cyMin = Math.min(...BODY_SYMBOLS.map((s) => s.cy));
@@ -198,6 +215,10 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
     });
   }, []);
 
+  const [selLayer, selRest] = selected ? selected.split(":") : [null, null];
+  const openSystemKey = ["body-system", "body-cell", "body-neuron"].includes(selLayer) ? selRest.split("__")[0] : null;
+  const openCellId = selLayer === "body-cell" || selLayer === "body-neuron" ? selRest.split("__").slice(0, 2).join("__") : null;
+
   return (
     <group position={offset}>
       {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
@@ -211,12 +232,38 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
         <MapNode key={s.key} id={`body:${s.key}`} label={s.label} color={s.color} position={[0, symbolY(s.cy), 0]} pulsing isSelected={selected === `body:${s.key}`} onSelect={onSelect} palette={palette} />
       ))}
 
-      {bodyView === "systems" && systemPositions.map((s) => (
-        <Line key={s.key + "-ring"} points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
-      ))}
-      {bodyView === "systems" && systemPositions.map((s) => (
-        <MapNode key={s.key} id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
-      ))}
+      {bodyView === "systems" && systemPositions.map((s) => {
+        const isOpen = openSystemKey === s.key;
+        const cellPositions = isOpen ? ringPositions(s.position, 1.1, CELLS_PER_SYSTEM) : null;
+        return (
+          <group key={s.key}>
+            <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />
+            <MapNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
+
+            {isOpen && cellPositions.map((pos, i) => {
+              const cellId = `body-cell:${s.key}__${i}`;
+              const isCellOpen = openCellId === `${s.key}__${i}`;
+              const neuronPositions = isCellOpen ? ringPositions(pos, 0.55, NEURONS_PER_CELL) : null;
+              return (
+                <group key={cellId}>
+                  <Line points={[s.position, pos]} color={s.color} transparent opacity={0.35} lineWidth={0.6} />
+                  <MapNode id={cellId} label={`Cell ${i + 1}`} color={s.color} size={0.5} position={pos} pulsing isSelected={selected === cellId} onSelect={onSelect} palette={palette} />
+
+                  {isCellOpen && neuronPositions.map((npos, j) => {
+                    const neuronId = `body-neuron:${s.key}__${i}__${j}`;
+                    return (
+                      <group key={neuronId}>
+                        <Line points={[pos, npos]} color={s.color} transparent opacity={0.4} lineWidth={0.5} />
+                        <MapNode id={neuronId} label={`Neuron ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === neuronId} onSelect={onSelect} palette={palette} />
+                      </group>
+                    );
+                  })}
+                </group>
+              );
+            })}
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -279,7 +326,7 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
         {layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
       </MouseParallax>
 
-      <OrbitControls enableZoom enablePan minDistance={4} maxDistance={40} />
+      <OrbitControls enableZoom enableRotate={false} enablePan={false} minDistance={4} maxDistance={40} />
     </>
   );
 }
@@ -376,9 +423,39 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
         <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>REFERENCE — REAL PHYSIOLOGY, NOT CLIENT DATA</div>
         <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label}</div>
         <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 12, lineHeight: 1.5 }}>{s.function}</div>
-        <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px" }}>
+        <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
           <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>OFTEN SHOWS UP SYMBOLICALLY AS</div>
           <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>{s.symbolicParallel}</div>
+        </div>
+        <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
+          Cells for this system just opened up in the map -- tap one to go deeper.
+        </div>
+      </>
+    );
+  } else if (selLayer === "body-cell") {
+    const [sysKey, cellIdxStr] = selKey.split("__");
+    const s = BODY_SYSTEMS.find((x) => x.key === sysKey);
+    if (s) panel = (
+      <>
+        <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>ILLUSTRATIVE — SCALE, NOT A REAL SCAN</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label} — Cell {parseInt(cellIdxStr, 10) + 1}</div>
+        <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 12, lineHeight: 1.5 }}>
+          Same {s.label.toLowerCase()} story, one layer in -- the pattern doesn't change with scale, only
+          the resolution you're looking at it with.
+        </div>
+        <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>Tap this cell's neurons to go one layer deeper still.</div>
+      </>
+    );
+  } else if (selLayer === "body-neuron") {
+    const [sysKey, , neuronIdxStr] = selKey.split("__");
+    const s = BODY_SYSTEMS.find((x) => x.key === sysKey);
+    if (s) panel = (
+      <>
+        <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>ILLUSTRATIVE — SCALE, NOT A REAL SCAN</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label} — Neuron {parseInt(neuronIdxStr, 10) + 1}</div>
+        <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
+          This is as deep as the map goes -- a single signal in the {s.label.toLowerCase()}, the same one
+          your symbols and story keep circling back to at the surface.
         </div>
       </>
     );
@@ -404,9 +481,11 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
-        relation to it -- toggle any combination on. Labels stay quiet until you hover or tap a point, so
-        the map itself stays calm even with a lot going on. Move your mouse to look around, drag to orbit
-        deliberately, scroll to zoom.
+        relation to it -- toggle any combination on. Move your mouse to turn all the way around, no
+        clicking required -- keep moving it the same direction and it keeps turning, so the regions
+        actually spread out instead of sitting on top of each other. Scroll to zoom. In Body Systems view,
+        tap a system to open its cells, then tap a cell to open its neurons -- same real system at three
+        depths, not three separate things.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
