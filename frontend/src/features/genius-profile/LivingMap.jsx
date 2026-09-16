@@ -57,14 +57,57 @@ const SYSTEM_LINKS = [
   ["urinary", "cardiovascular"],
 ];
 
-// Rotating the scene from raw mouse *movement* (regardless of clicking)
-// turned out to fight the exact thing people needed to do most: hold the
-// view still and click through nodes -- moving toward a node to click it
-// also spun the scene out from under the cursor. Standard click-and-drag
-// orbit (OrbitControls, below) doesn't have that problem: a plain click
-// selects a node, a deliberate drag orbits, and the two don't compete.
-// True 360 still works, it just takes an intentional drag instead of any
-// mouse movement at all.
+// heightFrac/cy both run head-to-foot (0/low = head, 1/high = feet) --
+// this shared mapping is what lets the symbolic points (BODY_SYMBOLS) and
+// the real physiological systems (BODY_SYSTEMS) line up on the same
+// spine even though they come from two different data files.
+const SPINE_TOP = 2.6, SPINE_BOTTOM = -2.6;
+function bodyHeightFromFrac(frac) {
+  return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
+}
+
+// Pure and cheap (11 systems) -- called directly wherever it's needed
+// (BodyRegion for rendering, Scene for camera framing) instead of being
+// threaded through props, so both always agree on where a system actually
+// sits without one of them going stale.
+function computeSystemPositions() {
+  return BODY_SYSTEMS.map((s, i) => {
+    const angle = (i / BODY_SYSTEMS.length) * Math.PI * 2;
+    const y = bodyHeightFromFrac(s.heightFrac);
+    return { ...s, position: [Math.cos(angle) * 1.5, y, Math.sin(angle) * 1.5] };
+  });
+}
+
+// A small sphere-shell cluster of points around a center, reusing the same
+// fibonacci distribution the Architecture/Symbols regions use -- reads as
+// a real cluster instead of a flat ring, closer to how these things
+// actually sit in three dimensions.
+function spherePositions(center, radius, count) {
+  return Array.from({ length: count }, (_, i) => {
+    const p = fibonacciSpherePosition(i, count, radius);
+    return [center[0] + p[0], center[1] + p[1], center[2] + p[2]];
+  });
+}
+
+// Selection ids for the Body Systems drill-down: body-system:<key>,
+// body-sub:<systemKey>__<subKey>, body-signal:<systemKey>__<subKey>__<i>.
+// Parsed in one place so BodyRegion, Scene, and the panel below never
+// disagree on how to read them.
+function parseBodySelection(selected) {
+  if (!selected) return { layer: null };
+  const [layer, rest] = selected.split(":");
+  if (!["body-system", "body-sub", "body-signal"].includes(layer)) return { layer };
+  const [systemKey, subKey, signalIdx] = (rest || "").split("__");
+  return { layer, systemKey, subKey, signalIdx };
+}
+
+const SIGNALS_PER_SUB = 6;
+
+// Click-and-drag orbit (OrbitControls, below), not continuous mouse-look --
+// an earlier version rotated the scene on any mouse movement at all, which
+// fought the one thing people needed most: holding the view still to click
+// a node. A plain click selects, a deliberate drag orbits, and the two
+// don't compete. True 360 still works, it just takes an intentional drag.
 
 function MapNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette }) {
   const shellRef = useRef();
@@ -169,48 +212,37 @@ function SymbolsRegion({ dreamEntries, selected, onSelect, palette }) {
   );
 }
 
-// heightFrac/cy both run head-to-foot (0/low = head, 1/high = feet) --
-// this shared mapping is what lets the symbolic points (BODY_SYMBOLS) and
-// the real physiological systems (BODY_SYSTEMS) line up on the same
-// spine even though they come from two different data files.
-const SPINE_TOP = 2.6, SPINE_BOTTOM = -2.6;
-function bodyHeightFromFrac(frac) {
-  return SPINE_TOP + frac * (SPINE_BOTTOM - SPINE_TOP);
-}
-
-// A small sphere-shell cluster of points around a center, reusing the same
-// fibonacci distribution the Architecture/Symbols regions use -- reads as
-// a cell cluster or a neuron cluster instead of a flat ring, closer to how
-// these things actually sit in three dimensions.
-function spherePositions(center, radius, count) {
-  return Array.from({ length: count }, (_, i) => {
-    const p = fibonacciSpherePosition(i, count, radius);
-    return [center[0] + p[0], center[1] + p[1], center[2] + p[2]];
+// Zooming into a system or substructure moves the *camera*, not the
+// content. An earlier version scaled the whole content group up to
+// simulate a zoom -- which also scaled every text label up with it,
+// producing giant overlapping labels that ate the screen and, worse,
+// shrank "empty space" to almost nothing, making it nearly impossible to
+// click your way back out. Dollying the real camera toward a target
+// avoids all of that: labels stay their normal on-screen size the way
+// real objects do when you walk closer to them. Once the camera settles
+// near its target, this stops touching it entirely so ordinary
+// drag/scroll/pan take back over immediately instead of fighting the user.
+function CameraDolly({ target, distance, controlsRef }) {
+  useFrame(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    const cam = controls.object;
+    const [tx, ty, tz] = target;
+    const dTargetX = tx - controls.target.x, dTargetY = ty - controls.target.y, dTargetZ = tz - controls.target.z;
+    const targetGap = Math.sqrt(dTargetX ** 2 + dTargetY ** 2 + dTargetZ ** 2);
+    const dir = cam.position.clone().sub(controls.target);
+    const curDist = dir.length() || 1;
+    const distGap = Math.abs(curDist - distance);
+    if (targetGap < 0.03 && distGap < 0.05) return;
+    controls.target.x += dTargetX * 0.08;
+    controls.target.y += dTargetY * 0.08;
+    controls.target.z += dTargetZ * 0.08;
+    dir.normalize();
+    const newDist = curDist + (distance - curDist) * 0.08;
+    cam.position.copy(controls.target).add(dir.multiplyScalar(newDist));
+    controls.update();
   });
-}
-
-const CELLS_PER_SYSTEM = 6;
-const NEURONS_PER_CELL = 8;
-
-// Drilling into a system moves and scales the whole Body content so the
-// thing you tapped ends up centered and larger -- an actual zoom, not just
-// new points appearing in place. Lerped each frame so it reads as motion
-// ("zooms into a clearer layer") rather than a jump cut.
-function FocusGroup({ target, scale, children }) {
-  const ref = useRef();
-  useFrame((_, delta) => {
-    if (!ref.current) return;
-    const t = Math.min(1, delta * 4);
-    const [tx, ty, tz] = target || [0, 0, 0];
-    ref.current.position.x += (-tx - ref.current.position.x) * t;
-    ref.current.position.y += (-ty - ref.current.position.y) * t;
-    ref.current.position.z += (-tz - ref.current.position.z) * t;
-    const s = ref.current.scale;
-    s.x += (scale - s.x) * t;
-    s.y += (scale - s.y) * t;
-    s.z += (scale - s.z) * t;
-  });
-  return <group ref={ref}>{children}</group>;
+  return null;
 }
 
 // The symbolic chakra-style points and the real physiological systems are
@@ -218,50 +250,27 @@ function FocusGroup({ target, scale, children }) {
 // overcrowded map instead of two clear ones. bodyView picks which one is
 // actually on screen; the spine itself stays as a shared anchor either way.
 //
-// Within Systems view, "down to cells and neurons" is a real zoom, not a
-// denser default: tap a system and the whole Body content re-centers and
-// scales up on it (FocusGroup) while every other system disappears --
-// "artwork inside of artwork," one holographic layer at a time, Magic
-// School Bus style, instead of everything visible and crowded at once.
-// Tap a cell inside it and the same thing happens one layer deeper, into
-// a small sphere-cluster of neurons. Tap empty space to zoom back out.
-// Ids: body-system:<key>, body-cell:<systemKey>__<i>,
-// body-neuron:<systemKey>__<i>__<j> ("__" separates parts within a layer
-// so the top-level "layer:key" split on ":" still works).
+// Within Systems view, drilling in is a real camera zoom (see CameraDolly)
+// that also hides every other system so it reads as "artwork inside of
+// artwork" -- one holographic layer at a time, Magic School Bus style --
+// instead of everything visible and crowded at once. Each system's first
+// layer is its own real named substructures (see bodySystems.js), not a
+// generic "Cell 1..6" placeholder; tap one to reveal a small cluster of
+// generic signal points one layer deeper still. Tap empty space, or use
+// the breadcrumb/dropdown outside the canvas, to back out.
 function BodyRegion({ selected, onSelect, palette, bodyView }) {
   const offset = REGION_OFFSET.body;
   const cyMin = Math.min(...BODY_SYMBOLS.map((s) => s.cy));
   const cyMax = Math.max(...BODY_SYMBOLS.map((s) => s.cy));
   const symbolY = (cy) => bodyHeightFromFrac((cy - cyMin) / (cyMax - cyMin));
 
-  const systemPositions = useMemo(() => {
-    return BODY_SYSTEMS.map((s, i) => {
-      const angle = (i / BODY_SYSTEMS.length) * Math.PI * 2;
-      const y = bodyHeightFromFrac(s.heightFrac);
-      return { ...s, position: [Math.cos(angle) * 1.5, y, Math.sin(angle) * 1.5] };
-    });
-  }, []);
-
-  const [selLayer, selRest] = selected ? selected.split(":") : [null, null];
-  const openSystemKey = ["body-system", "body-cell", "body-neuron"].includes(selLayer) ? selRest.split("__")[0] : null;
-  const openCellId = selLayer === "body-cell" || selLayer === "body-neuron" ? selRest.split("__").slice(0, 2).join("__") : null;
-  const openSystem = systemPositions.find((s) => s.key === openSystemKey);
-
-  let focusTarget = null, focusScale = 1;
-  if (openSystem) {
-    if (selLayer === "body-cell" || selLayer === "body-neuron") {
-      const cellIdx = parseInt(openCellId.split("__")[1], 10);
-      focusTarget = spherePositions(openSystem.position, 1.1, CELLS_PER_SYSTEM)[cellIdx];
-      focusScale = 3.4;
-    } else {
-      focusTarget = openSystem.position;
-      focusScale = 1.9;
-    }
-  }
+  const systemPositions = computeSystemPositions();
+  const { layer: selLayer, systemKey: openSystemKey, subKey: openSubKey } = parseBodySelection(selected);
+  const activeSystemKey = ["body-system", "body-sub", "body-signal"].includes(selLayer) ? openSystemKey : null;
 
   return (
     <group position={offset}>
-      {!openSystemKey && (
+      {!activeSystemKey && (
         <>
           {/* Simple spine + head indicator so the points read as "on a body," not floating at random */}
           <Line points={[[0, SPINE_TOP, 0], [0, SPINE_BOTTOM, 0]]} color={COLORS.grid} transparent opacity={0.5} lineWidth={1} />
@@ -277,40 +286,42 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
       ))}
 
       {bodyView === "systems" && (
-        <FocusGroup target={focusTarget} scale={focusScale}>
-          {!openSystemKey && SYSTEM_LINKS.map(([aKey, bKey], i) => {
+        <>
+          {!activeSystemKey && SYSTEM_LINKS.map(([aKey, bKey], i) => {
             const a = systemPositions.find((s) => s.key === aKey);
             const b = systemPositions.find((s) => s.key === bKey);
             if (!a || !b) return null;
             return <Line key={i} points={[a.position, b.position]} color={COLORS.gold} transparent opacity={0.45} lineWidth={1} dashed dashSize={0.12} gapSize={0.08} />;
           })}
 
-          {systemPositions.filter((s) => !openSystemKey || s.key === openSystemKey).map((s) => {
-            const isOpen = openSystemKey === s.key;
-            const cellPositions = isOpen ? spherePositions(s.position, 1.1, CELLS_PER_SYSTEM) : null;
+          {systemPositions.filter((s) => !activeSystemKey || s.key === activeSystemKey).map((s) => {
+            const isOpen = activeSystemKey === s.key;
+            const subs = s.substructures || [];
+            const subPositions = isOpen ? spherePositions(s.position, 1.1, subs.length) : null;
             return (
               <group key={s.key}>
-                {!openSystemKey && <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />}
+                {!activeSystemKey && <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />}
                 <MapNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
 
-                {isOpen && cellPositions.map((pos, i) => {
-                  const cellId = `body-cell:${s.key}__${i}`;
-                  const isCellOpen = openCellId === `${s.key}__${i}`;
-                  const neuronPositions = isCellOpen ? spherePositions(pos, 0.6, NEURONS_PER_CELL) : null;
+                {isOpen && subs.map((sub, i) => {
+                  const pos = subPositions[i];
+                  const subId = `body-sub:${s.key}__${sub.key}`;
+                  const isSubOpen = (selLayer === "body-sub" || selLayer === "body-signal") && openSystemKey === s.key && openSubKey === sub.key;
+                  const signalPositions = isSubOpen ? spherePositions(pos, 0.6, SIGNALS_PER_SUB) : null;
                   return (
-                    <group key={cellId}>
+                    <group key={subId}>
                       <Line points={[s.position, pos]} color={s.color} transparent opacity={0.35} lineWidth={0.6} />
-                      <MapNode id={cellId} label={`Cell ${i + 1}`} color={s.color} size={0.5} position={pos} pulsing isSelected={selected === cellId} onSelect={onSelect} palette={palette} />
+                      <MapNode id={subId} label={sub.label} color={s.color} size={0.55} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} />
 
-                      {isCellOpen && neuronPositions.map((npos, j) => {
-                        const neuronId = `body-neuron:${s.key}__${i}__${j}`;
-                        const prev = neuronPositions[(j + NEURONS_PER_CELL - 1) % NEURONS_PER_CELL];
+                      {isSubOpen && signalPositions.map((npos, j) => {
+                        const signalId = `body-signal:${s.key}__${sub.key}__${j}`;
+                        const prev = signalPositions[(j + SIGNALS_PER_SUB - 1) % SIGNALS_PER_SUB];
                         return (
-                          <group key={neuronId}>
+                          <group key={signalId}>
                             <Line points={[pos, npos]} color={s.color} transparent opacity={0.35} lineWidth={0.5} />
-                            {/* synapse-style cross-links between neighboring neurons -- brain-cluster look, not a flat ring */}
+                            {/* synapse-style cross-links between neighbors -- brain-cluster look, not a flat ring */}
                             <Line points={[npos, prev]} color={s.color} transparent opacity={0.2} lineWidth={0.4} />
-                            <MapNode id={neuronId} label={`Neuron ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === neuronId} onSelect={onSelect} palette={palette} />
+                            <MapNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.3} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} />
                           </group>
                         );
                       })}
@@ -320,7 +331,7 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
               </group>
             );
           })}
-        </FocusGroup>
+        </>
       )}
     </group>
   );
@@ -360,12 +371,30 @@ function TeamRegion({ teamMembers, selected, onSelect, palette }) {
 }
 
 function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palette, isDark, bodyView }) {
-  const selLayer = selected ? selected.split(":")[0] : null;
+  const controlsRef = useRef();
+  const { layer: selLayer, systemKey: openSystemKey, subKey: openSubKey } = parseBodySelection(selected);
   // Drilled into a specific body system -- everything else (other regions,
   // other systems) hides so the zoom reads as one clear holographic layer
   // instead of the zoomed-in system fighting for space with everything
   // else still on screen behind it.
-  const bodyDrillActive = layers.body && bodyView === "systems" && ["body-system", "body-cell", "body-neuron"].includes(selLayer);
+  const bodyDrillActive = layers.body && bodyView === "systems" && ["body-system", "body-sub", "body-signal"].includes(selLayer);
+
+  let focusTarget = [0, 0, 0], focusDistance = 22;
+  if (bodyDrillActive) {
+    const openSystem = computeSystemPositions().find((s) => s.key === openSystemKey);
+    if (openSystem) {
+      focusTarget = openSystem.position;
+      focusDistance = 6;
+      if (selLayer === "body-sub" || selLayer === "body-signal") {
+        const subs = openSystem.substructures || [];
+        const subIdx = subs.findIndex((x) => x.key === openSubKey);
+        if (subIdx >= 0) {
+          focusTarget = spherePositions(openSystem.position, 1.1, subs.length)[subIdx];
+          focusDistance = selLayer === "body-signal" ? 1.5 : 2.4;
+        }
+      }
+    }
+  }
 
   return (
     <>
@@ -389,7 +418,15 @@ function Scene({ layers, dreamEntries, teamMembers, selected, setSelected, palet
       {layers.body && <BodyRegion selected={selected} onSelect={setSelected} palette={palette} bodyView={bodyView} />}
       {!bodyDrillActive && layers.team && <TeamRegion teamMembers={teamMembers} selected={selected} onSelect={setSelected} palette={palette} />}
 
-      <OrbitControls enableZoom enableRotate enablePan minDistance={2} maxDistance={40} />
+      {/* Only active in Body Systems view -- outside it the camera is
+          entirely the user's, exactly as before this feature existed.
+          Even at the plain Systems overview (nothing selected) it keeps
+          gently correcting pan/zoom drift back to a framing that shows
+          all 11 systems, which is what "couldn't find my way back" was
+          actually asking for -- orbiting alone never triggers it, since
+          rotation doesn't move the orbit target. */}
+      {bodyView === "systems" && <CameraDolly target={focusTarget} distance={focusDistance} controlsRef={controlsRef} />}
+      <OrbitControls ref={controlsRef} enableZoom enableRotate enablePan minDistance={1} maxDistance={40} />
     </>
   );
 }
@@ -410,11 +447,21 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
 
   const toggleLayer = (key) => setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  const jumpToSystem = (key) => {
+    setLayers((prev) => ({ ...prev, body: true }));
+    setBodyView("systems");
+    setSelected(key ? `body-system:${key}` : null);
+  };
+
   // Resolve whatever's selected into real content, regardless of which
   // region it came from -- id is "layer:key" (see MapNode). "body-system"
   // is its own layer prefix even though it renders inside the Body region,
   // since it's a distinct real dataset (see bodySystems.js's own note).
   const [selLayer, selKey] = selected ? selected.split(":") : [null, null];
+  const bodySel = parseBodySelection(selected);
+  const bodySelSystem = bodySel.systemKey ? BODY_SYSTEMS.find((x) => x.key === bodySel.systemKey) : null;
+  const bodySelSub = bodySelSystem && bodySel.subKey ? bodySelSystem.substructures.find((x) => x.key === bodySel.subKey) : null;
+
   let panel = null;
   if (selLayer === "architecture") {
     const n = PROFILE_NODES.find((x) => x.key === selKey);
@@ -479,9 +526,9 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
         <div style={{ fontSize: 11, color: COLORS.inkDim, lineHeight: 1.5 }}>{s.bioNote}</div>
       </>
     );
-  } else if (selLayer === "body-system") {
-    const s = BODY_SYSTEMS.find((x) => x.key === selKey);
-    if (s) panel = (
+  } else if (bodySel.layer === "body-system" && bodySelSystem) {
+    const s = bodySelSystem;
+    panel = (
       <>
         <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>REFERENCE — REAL PHYSIOLOGY, NOT CLIENT DATA</div>
         <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label}</div>
@@ -490,35 +537,47 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
           <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>OFTEN SHOWS UP SYMBOLICALLY AS</div>
           <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>{s.symbolicParallel}</div>
         </div>
+        {s.commonlyTracked?.length > 0 && (
+          <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 6 }}>COMMONLY TRACKED HERE</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {s.commonlyTracked.map((item) => (
+                <div key={item} style={{ fontSize: 11.5, color: COLORS.ink }}>• {item}</div>
+              ))}
+            </div>
+          </div>
+        )}
         <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-          Cells for this system just opened up in the map -- tap one to go deeper.
+          {s.label}'s real substructures just opened up in the map -- tap one to go deeper.
         </div>
       </>
     );
-  } else if (selLayer === "body-cell") {
-    const [sysKey, cellIdxStr] = selKey.split("__");
-    const s = BODY_SYSTEMS.find((x) => x.key === sysKey);
-    if (s) panel = (
+  } else if (bodySel.layer === "body-sub" && bodySelSystem && bodySelSub) {
+    const s = bodySelSystem, sub = bodySelSub;
+    panel = (
       <>
-        <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>ILLUSTRATIVE — SCALE, NOT A REAL SCAN</div>
-        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label} — Cell {parseInt(cellIdxStr, 10) + 1}</div>
-        <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 12, lineHeight: 1.5 }}>
-          Same {s.label.toLowerCase()} story, one layer in -- the pattern doesn't change with scale, only
-          the resolution you're looking at it with.
+        <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>REFERENCE — REAL ANATOMY, NOT CLIENT DATA</div>
+        <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 4 }}>{s.label}</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{sub.label}</div>
+        <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 12, lineHeight: 1.5 }}>{sub.function}</div>
+        <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>OFTEN SHOWS UP SYMBOLICALLY AS</div>
+          <div style={{ fontSize: 12, color: COLORS.ink, lineHeight: 1.5 }}>{sub.symbolicParallel}</div>
         </div>
-        <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>Tap this cell's neurons to go one layer deeper still.</div>
+        <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>Tap a {s.signalLabel?.toLowerCase() || "signal"} point to go one layer deeper still.</div>
       </>
     );
-  } else if (selLayer === "body-neuron") {
-    const [sysKey, , neuronIdxStr] = selKey.split("__");
-    const s = BODY_SYSTEMS.find((x) => x.key === sysKey);
-    if (s) panel = (
+  } else if (bodySel.layer === "body-signal" && bodySelSystem && bodySelSub) {
+    const s = bodySelSystem, sub = bodySelSub;
+    const idx = parseInt(bodySel.signalIdx, 10);
+    panel = (
       <>
         <div style={{ fontSize: 9, color: COLORS.violet, letterSpacing: 0.4, marginBottom: 6 }}>ILLUSTRATIVE — SCALE, NOT A REAL SCAN</div>
-        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.label} — Neuron {parseInt(neuronIdxStr, 10) + 1}</div>
+        <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 4 }}>{s.label} — {sub.label}</div>
+        <div style={{ fontFamily: "Georgia, serif", fontSize: 18, color: s.color, marginBottom: 10 }}>{s.signalLabel || "Signal"} {isNaN(idx) ? "" : idx + 1}</div>
         <div style={{ fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
-          This is as deep as the map goes -- a single signal in the {s.label.toLowerCase()}, the same one
-          your symbols and story keep circling back to at the surface.
+          This is as deep as the map goes -- a single signal in the {sub.label.toLowerCase()}, the same
+          pattern your symbols and story keep circling back to at the surface.
         </div>
       </>
     );
@@ -540,14 +599,16 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
     );
   }
 
+  const showBodyNav = layers.body && bodyView === "systems";
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "12px 16px", fontSize: 12.5, color: COLORS.ink, lineHeight: 1.5 }}>
         One universe, four real regions, the Body at the center since everything else is understood in
         relation to it -- toggle any combination on. Drag to orbit all the way around, scroll to zoom, tap
         a point to select it -- a plain click won't spin the view out from under you. In Body Systems view,
-        gold lines show how the systems actually relate; tap one to zoom into it (everything else clears
-        away), tap a cell inside it to zoom in again to its neurons. Tap empty space to zoom back out.
+        gold lines show how the systems actually relate; use the jump menu or breadcrumb below the map to
+        move between layers any time -- you're never stuck without a way back.
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -608,6 +669,62 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [] }) {
           ))}
         </div>
       </div>
+
+      {/* Jump menu + breadcrumb -- a reliable way to move around the Body Systems
+          map that never depends on clicking precisely on empty 3D space. */}
+      {showBodyNav && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, background: COLORS.bgPanelAlt, borderRadius: 10, padding: "8px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+            <button
+              onClick={() => setSelected(null)}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: bodySelSystem ? COLORS.inkDim : COLORS.coral, fontWeight: bodySelSystem ? 400 : 600 }}
+            >
+              Overview
+            </button>
+            {bodySelSystem && (
+              <>
+                <span style={{ color: COLORS.inkDim }}>›</span>
+                <button
+                  onClick={() => setSelected(`body-system:${bodySelSystem.key}`)}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: bodySelSub ? COLORS.inkDim : COLORS.coral, fontWeight: bodySelSub ? 400 : 600 }}
+                >
+                  {bodySelSystem.label}
+                </button>
+              </>
+            )}
+            {bodySelSub && (
+              <>
+                <span style={{ color: COLORS.inkDim }}>›</span>
+                <span style={{ color: COLORS.coral, fontWeight: 600 }}>{bodySelSub.label}</span>
+              </>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {selected && (
+              <button
+                onClick={() => {
+                  if (bodySel.layer === "body-signal") setSelected(`body-sub:${bodySel.systemKey}__${bodySel.subKey}`);
+                  else if (bodySel.layer === "body-sub") setSelected(`body-system:${bodySel.systemKey}`);
+                  else setSelected(null);
+                }}
+                style={{ padding: "5px 12px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.ink, fontSize: 11.5, cursor: "pointer" }}
+              >
+                ← Zoom out
+              </button>
+            )}
+            <select
+              value={bodySelSystem?.key || ""}
+              onChange={(e) => jumpToSystem(e.target.value || null)}
+              style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 11.5, cursor: "pointer" }}
+            >
+              <option value="">Jump to a system…</option>
+              {BODY_SYSTEMS.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ width: "100%", maxWidth: 620, height: 480, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
