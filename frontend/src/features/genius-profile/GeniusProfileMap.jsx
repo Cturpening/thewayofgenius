@@ -61,9 +61,13 @@ export default function GeniusProfileMap({ setView, constitutionAnswers = [] }) 
         <style>{`
           @keyframes weaveLine { from { stroke-dashoffset: 500; opacity: 0; } to { stroke-dashoffset: 0; opacity: 1; } }
           @keyframes weaveNode { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+          @keyframes weavePulse { 0%, 100% { opacity: 0.3; transform: scale(1); } 50% { opacity: 0.75; transform: scale(1.15); } }
+          @keyframes weaveHubGlow { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.55; } }
           .weave-spoke { stroke-dasharray: 500; animation: weaveLine 0.9s ease-out forwards; }
           .weave-cross { stroke-dasharray: 500; animation: weaveLine 1.1s ease-out forwards; }
           .weave-node { animation: weaveNode 0.5s ease-out forwards; transform-origin: center; transform-box: fill-box; }
+          .weave-live-glow { animation: weavePulse 2.8s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+          .weave-hub-glow { animation: weaveHubGlow 3.2s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
         `}</style>
         <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{
           maxWidth: 440,
@@ -103,6 +107,7 @@ export default function GeniusProfileMap({ setView, constitutionAnswers = [] }) 
                 style={{ animationDelay: `${i * 0.1}s` }} />
             );
           })}
+          <circle className="weave-hub-glow" cx={cx} cy={cy} r="54" fill="none" stroke={COLORS.gold} strokeWidth="1.4" />
           <circle cx={cx} cy={cy} r="46" fill={COLORS.bgPanelAlt} stroke={COLORS.ink} strokeWidth="1.4" />
           <text x={cx} y={cy - 4} textAnchor="middle" fontSize="12" fill={COLORS.ink} fontFamily="Georgia, serif">Genius</text>
           <text x={cx} y={cy + 12} textAnchor="middle" fontSize="12" fill={COLORS.ink} fontFamily="Georgia, serif">Profile</text>
@@ -115,7 +120,9 @@ export default function GeniusProfileMap({ setView, constitutionAnswers = [] }) 
             return (
               <g key={n.key} className="weave-node" style={{ cursor: "pointer", animationDelay: `${0.3 + i * 0.1}s`, opacity: 0 }} onClick={() => selectNode(n.key)}>
                 <circle cx={x} cy={y} r={isSel ? 15 : 11} fill={n.status === "planned" ? COLORS.bgPanelAlt : `${n.color}33`} stroke={n.color} strokeWidth={isSel ? 2.5 : 1.5} />
-                {n.status === "live" && <circle cx={x} cy={y} r={isSel ? 15 : 11} fill="none" stroke={n.color} strokeWidth="0.8" opacity="0.4" />}
+                {n.status === "live" && (
+                  <circle className="weave-live-glow" cx={x} cy={y} r={isSel ? 15 : 11} fill="none" stroke={n.color} strokeWidth="0.8" />
+                )}
                 <text
                   x={x + (Math.cos(rad) >= 0 ? 18 : -18)}
                   y={y + (Math.sin(rad) >= 0 ? 5 : 5)}
