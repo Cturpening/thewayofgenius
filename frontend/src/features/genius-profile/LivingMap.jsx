@@ -175,6 +175,31 @@ function organicCurve(from, to, bow, segments = 12) {
   return pts;
 }
 
+// A small bright point traveling along a curve on a loop -- "glowing
+// nodes with pathways that clearly weave between them," a signal
+// actually firing rather than a static wire. speed/offset let several
+// pulses on nearby paths desync instead of all firing in lockstep, which
+// would read as one blinking light rather than a live network.
+function SignalPulse({ points, color, speed = 0.5, offset = 0 }) {
+  const ref = useRef();
+  useFrame((state) => {
+    if (!ref.current) return;
+    const segments = points.length - 1;
+    const t = (state.clock.elapsedTime * speed + offset) % 1;
+    const pos = t * segments;
+    const i = Math.min(segments - 1, Math.floor(pos));
+    const localT = pos - i;
+    const [x0, y0, z0] = points[i], [x1, y1, z1] = points[i + 1];
+    ref.current.position.set(x0 + (x1 - x0) * localT, y0 + (y1 - y0) * localT, z0 + (z1 - z0) * localT);
+  });
+  return (
+    <mesh ref={ref}>
+      <sphereGeometry args={[0.045, 6, 6]} />
+      <meshBasicMaterial color={color} transparent opacity={0.95} />
+    </mesh>
+  );
+}
+
 // Real, distinct, recognizable geometry per body system -- "a doctor
 // should look at it and say oh I get it." Every system used to share one
 // generic capsule/icosahedron differentiated only by color, which is
@@ -188,6 +213,15 @@ function organicCurve(from, to, bow, segments = 12) {
 // same recognizable shape represents that system whether you're looking
 // at the whole organ or one cell inside it -- "artwork inside of artwork"
 // with real content at every layer, not just the outermost one.
+// A small, denser inner sphere reading as a nucleus -- the single most
+// recognizable "this is a cell" cue in a real textbook diagram. Left off
+// on purpose for cardiovascular (real red blood cells are enucleated --
+// an authentic detail worth keeping, not an oversight) and respiratory
+// (the alveoli glyph is a structure, a sac cluster, not one cell).
+function Nucleus({ color, position = [0, 0, 0], radius = 0.075 }) {
+  return <mesh position={position}><sphereGeometry args={[radius, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.88} /></mesh>;
+}
+
 function SystemShape({ systemKey, color }) {
   switch (systemKey) {
     case "nervous": {
@@ -199,12 +233,14 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><sphereGeometry args={[0.16, 12, 12]} /><meshBasicMaterial color={color} transparent opacity={0.5} /></mesh>
+          <Nucleus color={color} radius={0.07} />
           <Line points={[[0, 0, 0], [0, -0.5, 0]]} color={color} transparent opacity={0.7} lineWidth={1.4} />
           {dendrites.map((pts, i) => <Line key={i} points={pts} color={color} transparent opacity={0.6} lineWidth={1} />)}
         </>
       );
     }
     case "cardiovascular":
+      // No nucleus, deliberately -- real red blood cells don't have one.
       return (
         <>
           <mesh scale={[1, 0.32, 1]}><sphereGeometry args={[0.28, 16, 16]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
@@ -216,20 +252,26 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><sphereGeometry args={[0.1, 10, 10]} /><meshBasicMaterial color={color} transparent opacity={0.55} /></mesh>
+          <Nucleus color={color} radius={0.045} />
           {spikes.map((dir, i) => <Line key={i} points={[[0, 0, 0], dir]} color={color} transparent opacity={0.6} lineWidth={1} />)}
         </>
       );
     }
     case "muscular":
+      // Two nuclei, not one -- real skeletal muscle fibers are multinucleated.
       return (
         <>
           <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.09, 0.09, 0.6, 10]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
           {[-0.2, -0.07, 0.07, 0.2].map((x, i) => (
             <mesh key={i} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}><torusGeometry args={[0.095, 0.012, 6, 16]} /><meshBasicMaterial color={color} transparent opacity={0.7} /></mesh>
           ))}
+          <Nucleus color={color} position={[-0.15, 0.04, 0]} radius={0.04} />
+          <Nucleus color={color} position={[0.1, -0.04, 0]} radius={0.04} />
         </>
       );
     case "respiratory":
+      // No single nucleus -- this glyph represents the alveolar sac
+      // structure, not one cell.
       return (
         <>
           {[[0, 0, 0], [0.14, 0.08, 0.05], [-0.12, 0.1, -0.05], [0.03, -0.13, 0.08]].map((p, i) => (
@@ -241,6 +283,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh scale={[1, 0.75, 1.25]}><icosahedronGeometry args={[0.22, 1]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <Nucleus color={color} radius={0.075} />
           <mesh position={[0.22, 0.1, 0]} scale={0.6}><sphereGeometry args={[0.12, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
           <mesh position={[-0.15, -0.15, 0.12]} scale={0.5}><sphereGeometry args={[0.12, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
         </>
@@ -249,6 +292,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><sphereGeometry args={[0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshBasicMaterial color={color} transparent opacity={0.4} side={2} /></mesh>
+          <Nucleus color={color} position={[0, 0.06, 0]} radius={0.06} />
           {[[-0.05, 0.18, 0], [0.05, 0.18, 0], [0, 0.18, 0.05], [0, 0.18, -0.05]].map((p, i) => (
             <Line key={i} points={[p, [p[0] * 1.3, p[1] + 0.15, p[2] * 1.3]]} color={color} transparent opacity={0.6} lineWidth={1} />
           ))}
@@ -258,6 +302,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><sphereGeometry args={[0.2, 12, 12]} /><meshBasicMaterial color={color} transparent opacity={0.35} /></mesh>
+          <Nucleus color={color} radius={0.08} />
           {[[0.08, 0.05, 0.1], [-0.07, 0.09, -0.05], [0.02, -0.1, 0.08], [-0.09, -0.04, -0.09]].map((p, i) => (
             <mesh key={i} position={p}><sphereGeometry args={[0.035, 6, 6]} /><meshBasicMaterial color={color} transparent opacity={0.9} /></mesh>
           ))}
@@ -267,6 +312,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><boxGeometry args={[0.26, 0.26, 0.26]} /><meshBasicMaterial color={color} transparent opacity={0.3} /></mesh>
+          <Nucleus color={color} radius={0.08} />
           <mesh><boxGeometry args={[0.28, 0.28, 0.28]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.6} /></mesh>
         </>
       );
@@ -274,6 +320,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh><sphereGeometry args={[0.2, 14, 14]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <Nucleus color={color} radius={0.085} />
           <mesh scale={1.15}><sphereGeometry args={[0.2, 14, 14]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.5} /></mesh>
         </>
       );
@@ -281,6 +328,7 @@ function SystemShape({ systemKey, color }) {
       return (
         <>
           <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.22, 0.22, 0.05, 6]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <Nucleus color={color} radius={0.06} />
           <mesh rotation={[Math.PI / 2, 0, 0]} scale={1.1}><cylinderGeometry args={[0.22, 0.22, 0.05, 6]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.55} /></mesh>
         </>
       );
@@ -469,7 +517,11 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
           {systemPositions.filter((s) => !activeSystemKey || s.key === activeSystemKey).map((s) => {
             const isOpen = activeSystemKey === s.key;
             const subs = s.substructures || [];
-            const subPositions = isOpen ? spherePositions(s.position, 1.1, subs.length) : null;
+            // Much more spread than before -- "not sitting so on top of each
+            // other" -- and grows a little with how many substructures a
+            // system actually has instead of a fixed radius.
+            const subRadius = Math.max(2.2, 1.4 + subs.length * 0.15);
+            const subPositions = isOpen ? spherePositions(s.position, subRadius, subs.length) : null;
             return (
               <group key={s.key}>
                 {!activeSystemKey && <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />}
@@ -479,20 +531,30 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
                   const pos = subPositions[i];
                   const subId = `body-sub:${s.key}__${sub.key}`;
                   const isSubOpen = (selLayer === "body-sub" || selLayer === "body-signal") && openSystemKey === s.key && openSubKey === sub.key;
-                  const signalPositions = isSubOpen ? spherePositions(pos, 0.6, SIGNALS_PER_SUB) : null;
+                  const signalRadius = 1.5;
+                  const signalPositions = isSubOpen ? spherePositions(pos, signalRadius, SIGNALS_PER_SUB) : null;
+                  const subCurve = organicCurve(s.position, pos, 0.4);
                   return (
                     <group key={subId}>
-                      <Line points={organicCurve(s.position, pos, 0.22)} color={s.color} transparent opacity={0.4} lineWidth={0.7} />
+                      {/* glow: a wider, fainter duplicate under the real line -- reads as
+                          a lit pathway instead of a plain wire */}
+                      <Line points={subCurve} color={s.color} transparent opacity={0.12} lineWidth={4} />
+                      <Line points={subCurve} color={s.color} transparent opacity={0.5} lineWidth={0.9} />
+                      <SignalPulse points={subCurve} color={s.color} speed={0.35} offset={i / Math.max(1, subs.length)} />
                       <ShapeNode id={subId} label={sub.label} color={s.color} size={1} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} systemKey={s.key} />
 
                       {isSubOpen && signalPositions.map((npos, j) => {
                         const signalId = `body-signal:${s.key}__${sub.key}__${j}`;
                         const prev = signalPositions[(j + SIGNALS_PER_SUB - 1) % SIGNALS_PER_SUB];
+                        const signalCurve = organicCurve(pos, npos, 0.22);
+                        const neighborCurve = organicCurve(npos, prev, 0.14);
                         return (
                           <group key={signalId}>
-                            <Line points={organicCurve(pos, npos, 0.12)} color={s.color} transparent opacity={0.4} lineWidth={0.55} />
+                            <Line points={signalCurve} color={s.color} transparent opacity={0.1} lineWidth={3.5} />
+                            <Line points={signalCurve} color={s.color} transparent opacity={0.5} lineWidth={0.75} />
+                            <SignalPulse points={signalCurve} color={s.color} speed={0.6} offset={j / SIGNALS_PER_SUB} />
                             {/* synapse-style cross-links between neighbors -- network look, not a flat ring */}
-                            <Line points={organicCurve(npos, prev, 0.08)} color={s.color} transparent opacity={0.22} lineWidth={0.4} />
+                            <Line points={neighborCurve} color={s.color} transparent opacity={0.22} lineWidth={0.4} />
                             <ShapeNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.6} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} systemKey={s.key} />
                           </group>
                         );
@@ -566,12 +628,16 @@ function computeFocus(selected, bodyView) {
     const { systemKey, subKey } = parseBodySelection(selected);
     const openSystem = computeSystemPositions().find((s) => s.key === systemKey);
     if (!openSystem) return { target: REGION_OFFSET.body, distance: 6 };
-    if (layer === "body-system") return { target: openSystem.position, distance: 6 };
+    // Substructures now spread much further out (see BodyRegion) -- the
+    // camera needs to sit further back too, or the wider ring would spill
+    // past the edges of the frame.
+    if (layer === "body-system") return { target: openSystem.position, distance: 9 };
     const subs = openSystem.substructures || [];
     const subIdx = subs.findIndex((x) => x.key === subKey);
-    if (subIdx < 0) return { target: openSystem.position, distance: 6 };
-    const subPos = spherePositions(openSystem.position, 1.1, subs.length)[subIdx];
-    return { target: subPos, distance: layer === "body-signal" ? 1.5 : 2.4 };
+    if (subIdx < 0) return { target: openSystem.position, distance: 9 };
+    const subRadius = Math.max(2.2, 1.4 + subs.length * 0.15);
+    const subPos = spherePositions(openSystem.position, subRadius, subs.length)[subIdx];
+    return { target: subPos, distance: layer === "body-signal" ? 3.2 : 4.5 };
   }
   if (layer === "link") {
     const [scope, aKey, bKey] = (rest || "").split("__");
