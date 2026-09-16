@@ -1,43 +1,23 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { COLORS } from "../../theme/tokens";
+import { buildSymbolGraph, entriesForTag, hashTag, neighborsForTag, SYMBOL_PALETTE } from "./symbolGraph";
 
-// The one visual in this app actually built live from the user's own real
-// data, not a static illustration -- every other "map" (Weave View, Body
-// View, Arc View) is either the app's own architecture or invented sample
+// The 2D counterpart to Your Universe (the 3D version of the same real
+// data) -- every other "map" besides these two (Weave View, Body View,
+// Arc View) is either the app's own architecture or invented sample
 // content, both honestly labeled as such. This constellation is real tag
 // frequency and real co-occurrence from the user's own dream_journal_entries
 // (see backend/app/models.py's DreamJournalEntry.tags), nothing invented.
-
-// Small deterministic hash so each tag gets a stable-but-organic jitter --
-// same tag always lands in the same spot across reloads, but the layout
-// doesn't look like a grid.
-function hash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-const PALETTE = [COLORS.teal, COLORS.gold, COLORS.coral, COLORS.violet];
+// The actual frequency/co-occurrence math and the color palette both live
+// in ./symbolGraph.js, shared with the 3D version -- same symbol, same
+// color, whichever view you look at it in.
 
 export default function SymbolConstellation({ dreamEntries = [] }) {
   const [selected, setSelected] = useState(null);
 
   const { nodes, links, maxCount, w, h, cx, cy } = useMemo(() => {
-    const freq = new Map();
-    const cooccur = new Map();
-    for (const entry of dreamEntries) {
-      const tags = entry.tags || [];
-      for (const t of tags) freq.set(t, (freq.get(t) || 0) + 1);
-      for (let i = 0; i < tags.length; i++) {
-        for (let j = i + 1; j < tags.length; j++) {
-          const key = [tags[i], tags[j]].sort().join("::");
-          cooccur.set(key, (cooccur.get(key) || 0) + 1);
-        }
-      }
-    }
-    const tagList = Array.from(freq.keys()).sort((a, b) => freq.get(b) - freq.get(a));
-    const maxCount = tagList.length ? freq.get(tagList[0]) : 0;
+    const { tagList, freq, links: rawLinks, maxCount } = buildSymbolGraph(dreamEntries);
 
     // Size the canvas to however many real symbols this user has built up --
     // a brand-new account and a years-deep one both need to fit without
@@ -52,7 +32,7 @@ export default function SymbolConstellation({ dreamEntries = [] }) {
       const posInRing = i % 6;
       const ringCount = Math.min(6, tagList.length - ring * 6);
       const baseAngle = (posInRing / ringCount) * Math.PI * 2;
-      const jitter = hash(tag);
+      const jitter = hashTag(tag);
       const angle = baseAngle + ((jitter % 100) / 100 - 0.5) * 0.5;
       const radius = 40 + ring * 70 + ((jitter >> 8) % 20);
       return {
@@ -60,32 +40,22 @@ export default function SymbolConstellation({ dreamEntries = [] }) {
         count: freq.get(tag),
         x: cx + radius * Math.cos(angle),
         y: cy + radius * Math.sin(angle),
-        color: PALETTE[jitter % PALETTE.length],
+        color: SYMBOL_PALETTE[jitter % SYMBOL_PALETTE.length],
         phase: (jitter % 1000) / 1000,
       };
     });
 
     const nodeByTag = Object.fromEntries(nodes.map((n) => [n.tag, n]));
-    const links = Array.from(cooccur.entries()).map(([key, count]) => {
-      const [a, b] = key.split("::");
-      return { a: nodeByTag[a], b: nodeByTag[b], count };
-    });
+    const links = rawLinks.map(({ a, b, count }) => ({ a: nodeByTag[a], b: nodeByTag[b], count }));
 
     return { nodes, links, maxCount, w, h, cx, cy };
   }, [dreamEntries]);
 
   const selectedNode = nodes.find((n) => n.tag === selected);
-  const entriesWithTag = selectedNode
-    ? dreamEntries.filter((e) => (e.tags || []).includes(selectedNode.tag))
+  const entriesWithTag = selectedNode ? entriesForTag(dreamEntries, selectedNode.tag) : [];
+  const neighbors = selectedNode
+    ? neighborsForTag(links.map((l) => ({ a: l.a.tag, b: l.b.tag, count: l.count })), selectedNode.tag)
     : [];
-  const neighborCounts = new Map();
-  if (selectedNode) {
-    for (const l of links) {
-      if (l.a.tag === selectedNode.tag) neighborCounts.set(l.b.tag, l.count);
-      if (l.b.tag === selectedNode.tag) neighborCounts.set(l.a.tag, l.count);
-    }
-  }
-  const neighbors = Array.from(neighborCounts.entries()).sort((a, b) => b[1] - a[1]);
 
   if (nodes.length === 0) {
     return (

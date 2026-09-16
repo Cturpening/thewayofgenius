@@ -3,6 +3,8 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Sparkles, Billboard, Text, Line } from "@react-three/drei";
 import { COLORS } from "../../theme/tokens";
 import { CROSS_LINKS, PROFILE_NODES } from "./data/profileNodes";
+import { HOLOGRAM_PALETTES, useHologramTheme } from "./hologramTheme";
+import { fibonacciSpherePosition } from "./sphereLayout";
 
 // The real holographic version of the Weave View -- same real node data
 // (PROFILE_NODES, CROSS_LINKS), same honest live/illustrative/planned
@@ -13,16 +15,7 @@ import { CROSS_LINKS, PROFILE_NODES } from "./data/profileNodes";
 
 const STATUS_OPACITY = { live: 0.55, illustrative: 0.4, planned: 0.22 };
 
-function fibonacciSpherePosition(index, total, radius) {
-  const offset = 2 / total;
-  const increment = Math.PI * (3 - Math.sqrt(5));
-  const y = index * offset - 1 + offset / 2;
-  const r = Math.sqrt(Math.max(0, 1 - y * y));
-  const phi = index * increment;
-  return [Math.cos(phi) * r * radius, y * radius, Math.sin(phi) * r * radius];
-}
-
-function HologramNode({ node, position, isSelected, onSelect }) {
+function HologramNode({ node, position, isSelected, onSelect, palette }) {
   const shellRef = useRef();
   const coreRef = useRef();
   const baseOpacity = STATUS_OPACITY[node.status];
@@ -48,7 +41,7 @@ function HologramNode({ node, position, isSelected, onSelect }) {
         <meshBasicMaterial color={node.color} wireframe transparent opacity={isSelected ? 0.95 : 0.5} />
       </mesh>
       <Billboard position={[0, 0.85 * scale, 0]}>
-        <Text fontSize={0.26} color={isSelected ? node.color : "#EAF2ED"} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={COLORS.ink}>
+        <Text fontSize={0.26} color={isSelected ? node.color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
           {node.label}
         </Text>
       </Billboard>
@@ -56,7 +49,7 @@ function HologramNode({ node, position, isSelected, onSelect }) {
   );
 }
 
-function Scene({ selected, setSelected }) {
+function Scene({ selected, setSelected, palette, isDark }) {
   const positions = useMemo(() => {
     const map = {};
     PROFILE_NODES.forEach((n, i) => {
@@ -67,11 +60,15 @@ function Scene({ selected, setSelected }) {
 
   return (
     <>
-      <color attach="background" args={[COLORS.ink]} />
-      <ambientLight intensity={0.7} />
+      <color attach="background" args={[palette.background]} />
+      <ambientLight intensity={isDark ? 0.7 : 0.9} />
       <pointLight position={[8, 8, 8]} intensity={60} />
-      <Stars radius={70} depth={45} count={2200} factor={2.6} fade speed={0.5} />
-      <Sparkles count={70} scale={11} size={2.2} speed={0.25} color={COLORS.gold} />
+      {isDark && (
+        <>
+          <Stars radius={70} depth={45} count={2200} factor={2.6} fade speed={0.5} />
+          <Sparkles count={70} scale={11} size={2.2} speed={0.25} color={COLORS.gold} />
+        </>
+      )}
 
       {/* Hub */}
       <group onClick={(e) => e.stopPropagation()}>
@@ -84,7 +81,7 @@ function Scene({ selected, setSelected }) {
           <meshBasicMaterial color={COLORS.gold} wireframe transparent opacity={0.6} />
         </mesh>
         <Billboard position={[0, 1.6, 0]}>
-          <Text fontSize={0.3} color={COLORS.gold} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={COLORS.ink}>
+          <Text fontSize={0.3} color={COLORS.gold} anchorX="center" anchorY="middle" outlineWidth={0.012} outlineColor={palette.labelOutline}>
             Genius Profile
           </Text>
         </Billboard>
@@ -101,7 +98,7 @@ function Scene({ selected, setSelected }) {
       ))}
 
       {PROFILE_NODES.map((n) => (
-        <HologramNode key={n.key} node={n} position={positions[n.key]} isSelected={selected === n.key} onSelect={setSelected} />
+        <HologramNode key={n.key} node={n} position={positions[n.key]} isSelected={selected === n.key} onSelect={setSelected} palette={palette} />
       ))}
 
       <OrbitControls enableZoom enablePan={false} autoRotate autoRotateSpeed={0.4} minDistance={5} maxDistance={16} />
@@ -111,6 +108,8 @@ function Scene({ selected, setSelected }) {
 
 export default function HologramMap() {
   const [selected, setSelected] = useState(null);
+  const [theme, setTheme] = useHologramTheme();
+  const palette = HOLOGRAM_PALETTES[theme];
   const node = PROFILE_NODES.find((n) => n.key === selected);
   const statusColor = { live: COLORS.teal, illustrative: COLORS.gold, planned: COLORS.inkDim };
   const statusLabel = { live: "LIVE — REAL DATA", illustrative: "ILLUSTRATIVE — INVENTED", planned: "PLANNED — NO DATA YET" };
@@ -123,10 +122,28 @@ export default function HologramMap() {
         toward a living map you move through, not a picture of one.
       </div>
 
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
+        {["black", "white"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTheme(t)}
+            style={{
+              padding: "5px 12px", borderRadius: 999,
+              border: `1px solid ${theme === t ? COLORS.gold : COLORS.grid}`,
+              background: theme === t ? `${COLORS.gold}22` : "transparent",
+              color: theme === t ? COLORS.gold : COLORS.inkDim,
+              fontSize: 11, cursor: "pointer",
+            }}
+          >
+            {t === "black" ? "🌌 Space" : "☀️ Clean"}
+          </button>
+        ))}
+      </div>
+
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ width: "100%", maxWidth: 520, height: 440, borderRadius: 16, overflow: "hidden", border: `1px solid ${COLORS.grid}` }}>
           <Canvas camera={{ position: [0, 1, 11], fov: 50 }} onPointerMissed={() => setSelected(null)}>
-            <Scene selected={selected} setSelected={setSelected} />
+            <Scene selected={selected} setSelected={setSelected} palette={palette} isDark={theme === "black"} />
           </Canvas>
         </div>
 
