@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.goal_tools import find_goal_by_name
+from app.goal_tools import find_goal_for_linking
 from app.models import CalendarEvent
 from app.track_b import run_track_b
 
@@ -53,7 +53,7 @@ def make_executor(db: Session, user_id: UUID):
         category = args.get("category") if args.get("category") in _VALID_CATEGORIES else "other"
         goal_id = None
         if args.get("goal_name"):
-            goal = find_goal_by_name(db, user_id, args["goal_name"])
+            goal = find_goal_for_linking(db, user_id, args["goal_name"])
             goal_id = goal.id if goal else None
         event, crisis_response = add_event(db, user_id, day=args["day"], label=args["label"], category=category, goal_id=goal_id)
         if crisis_response:

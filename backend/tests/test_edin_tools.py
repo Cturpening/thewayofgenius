@@ -22,3 +22,22 @@ def test_every_declaration_has_the_gemini_shape():
 def test_unrecognized_tool_name_falls_through_every_domain():
     execute = edin_tools.build_tool_executor(db=None, user_id=None, node_key=None)
     assert execute("not_a_real_tool", {}) == {"error": "Unknown tool: not_a_real_tool"}
+
+
+def test_the_whole_toolbox_is_registered():
+    # Locks the full tool roster so a future refactor that accidentally
+    # drops a domain's import in edin_tools.py fails loudly here instead
+    # of silently shrinking what Edin can do.
+    names = {d["name"] for d in edin_tools.ALL_TOOL_DECLARATIONS}
+    assert names == {
+        "save_neuron_record",
+        "log_neuron_practice",
+        "log_dream_journal_entry",
+        "create_goal",
+        "update_goal_progress",
+        "list_goals",
+        "log_follow_through",
+        "update_follow_through_status",
+        "list_open_follow_throughs",
+        "add_calendar_event",
+    }

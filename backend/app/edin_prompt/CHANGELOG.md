@@ -1,5 +1,16 @@
 # Edin System Prompt — Changelog
 
+## v7 — the rest of the toolbox, and look-before-you-guess
+
+Widens the "Tool use in live chat" section for backlog #27 Phase 2's new
+tools (`app/goal_tools.py`'s `list_goals`, `app/follow_through_tools.py`'s
+`update_follow_through_status` and `list_open_follow_throughs`): Edin can
+now mark an existing follow-through intention done/partial/not-done
+instead of only ever logging new ones, and is told to call a list tool
+first when she isn't sure of a goal's or intention's exact name rather
+than guessing at a fuzzy match and hoping the backend resolves it
+correctly. Everything else is unchanged from v6.
+
 ## v6 — real tool use in live chat
 
 Adds a "Tool use in live chat" section for backlog #27's Phase 1/2 work
