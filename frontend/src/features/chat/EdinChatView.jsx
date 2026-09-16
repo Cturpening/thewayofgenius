@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import { speakText, stopSpeaking } from "../../lib/speech";
@@ -224,13 +225,25 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
             ? m.text.split(" ").slice(0, revealedWordCount).join(" ")
             : m.text;
           return (
-          <div key={m.id || i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <motion.div
+            key={m.id || i}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            style={{ display: "flex", flexDirection: "column", gap: 8 }}
+          >
             <div style={{ display: "flex", justifyContent: m.from === "user" ? "flex-end" : "flex-start", alignItems: "flex-end", gap: 6 }}>
               {m.from === "edin" && (
-                <img src={EDIN_ICON} alt="Edin" style={{
-                  width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginRight: 2,
-                  objectFit: "cover", boxShadow: `0 0 8px ${COLORS.gold}55`,
-                }} />
+                <motion.img
+                  src={EDIN_ICON}
+                  alt="Edin"
+                  animate={{ y: [0, -2, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  style={{
+                    width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginRight: 2,
+                    objectFit: "cover", boxShadow: `0 0 8px ${COLORS.gold}55`,
+                  }}
+                />
               )}
               <div style={{
                 maxWidth: m.crisis ? "85%" : "68%", padding: "10px 14px", borderRadius: 14,
@@ -260,12 +273,21 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
           );
         })}
         {sending && (
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
-            <img src={EDIN_ICON} alt="Edin" style={{
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ display: "flex", alignItems: "flex-end", gap: 6 }}
+          >
+            <motion.img
+              src={EDIN_ICON}
+              alt="Edin"
+              animate={{ y: [0, -3, 0] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+              style={{
               width: 28, height: 28, borderRadius: "50%", flexShrink: 0, marginRight: 2,
               objectFit: "cover", boxShadow: `0 0 8px ${COLORS.gold}55`,
             }} />
@@ -275,7 +297,7 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
             }}>
               Edin is thinking…
             </div>
-          </div>
+          </motion.div>
         )}
         <div ref={endRef} />
       </div>
@@ -297,13 +319,15 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
             opacity: sending ? 0.6 : 1,
           }}
         />
-        <button
+        <motion.button
           onClick={send}
           disabled={sending}
+          whileHover={sending ? {} : { scale: 1.05 }}
+          whileTap={sending ? {} : { scale: 0.93 }}
           style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: COLORS.teal, color: "#FDFEFC", fontSize: 13, cursor: sending ? "default" : "pointer", opacity: sending ? 0.6 : 1 }}
         >
           {sending ? "..." : "Send"}
-        </button>
+        </motion.button>
       </div>
 
       {!compact && dreamEntries.length > 0 && (

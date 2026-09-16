@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { COLORS } from "../../theme/tokens";
 import { EDIN_ICON } from "../../assets/edinIcon";
 import { fetchCheckIn } from "./api";
@@ -41,10 +42,15 @@ export default function EdinCheckIn({ setView, setLens }) {
   const stale = suggestions.filter((s) => s.isStale);
   if (stale.length === 0) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 10, background: `${COLORS.teal}12`, border: `1px solid ${COLORS.tealDim}`, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: COLORS.ink }}>
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        style={{ display: "flex", alignItems: "center", gap: 10, background: `${COLORS.teal}12`, border: `1px solid ${COLORS.tealDim}`, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: COLORS.ink }}
+      >
         <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
         You've touched every part of your practice recently -- good rhythm.
-      </div>
+      </motion.div>
     );
   }
 
@@ -60,17 +66,30 @@ export default function EdinCheckIn({ setView, setLens }) {
   const dest = DESTINATIONS[top.area];
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "10px 14px" }}>
-      <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+    <motion.div
+      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 10, padding: "10px 14px" }}
+    >
+      <motion.img
+        src={EDIN_ICON}
+        alt="Edin"
+        animate={{ y: [0, -3, 0] }}
+        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+        style={{ width: 24, height: 24, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+      />
       <div style={{ fontSize: 12.5, color: COLORS.ink, flex: 1, minWidth: 200 }}>{messageFor(top)}</div>
       {dest && (
-        <button
+        <motion.button
           onClick={() => dest.go(setView, setLens)}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.94 }}
           style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: COLORS.gold, color: "#FDFEFC", fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
         >
           {dest.label}
-        </button>
+        </motion.button>
       )}
-    </div>
+    </motion.div>
   );
 }

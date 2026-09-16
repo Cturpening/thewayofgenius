@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { COLORS, SLEEP_STATES, WORKLOAD_STATES } from "./theme/tokens";
 import { EDIN_ICON } from "./assets/edinIcon";
 import ScienceView from "./features/verification/ScienceView";
@@ -190,11 +191,13 @@ export default function App() {
             {["map", "dojo", "goals", "library", "edin", "future"].map((v) => {
               const locked = isLocked(v);
               return (
-                <button
+                <motion.button
                   key={v}
                   onClick={() => !locked && setView(v)}
                   disabled={locked}
                   title={locked ? `Unlocks Day ${TAB_UNLOCK_DAY[v]}` : undefined}
+                  whileHover={locked ? {} : { scale: 1.04 }}
+                  whileTap={locked ? {} : { scale: 0.96 }}
                   style={{
                     padding: "9px 18px",
                     borderRadius: 10,
@@ -208,7 +211,7 @@ export default function App() {
                 >
                   {locked && "🔒 "}
                   {v === "map" ? "Genius Profile" : v === "dojo" ? "Edin's Psyche Dojo" : v === "goals" ? "Dream Journal & Calendar" : v === "library" ? "Symbolic Library" : v === "edin" ? "Edin" : "The Edin Ecosystem"}
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -248,30 +251,40 @@ export default function App() {
           </div>
         </div>
 
-        {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
-        {view === "dojo" && (
-          <PracticeDojoView
-            constitutionAnswers={constitutionAnswers}
-            setConstitutionAnswers={setConstitutionAnswers}
-            setView={setView}
-          />
-        )}
-        {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} />}
-        {view === "genetics" && <GeneticsSubconsciousView />}
-        {view === "library" && <SymbolicLibraryView />}
-        {view === "science" && (
-          <ScienceView mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
-        )}
-        {view === "user" && (
-          <PhoneMock mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
-        )}
-        {view === "edin" && <EdinChatView dreamEntries={dreamEntries} />}
-        {view === "future" && <FutureTechView />}
-        {view === "biofeedback" && <BiofeedbackLabView />}
-        {view === "microbiome" && <MicrobiomeView />}
-        {view === "other" && <OtherLanesView />}
-        {view === "edf" && <VerificationHub />}
-        {view === "coach" && isCoach && <CoachDashboardView />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            {view === "map" && <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} />}
+            {view === "dojo" && (
+              <PracticeDojoView
+                constitutionAnswers={constitutionAnswers}
+                setConstitutionAnswers={setConstitutionAnswers}
+                setView={setView}
+              />
+            )}
+            {view === "goals" && <GoalsCalendarView entries={dreamEntries} setEntries={setDreamEntries} />}
+            {view === "genetics" && <GeneticsSubconsciousView />}
+            {view === "library" && <SymbolicLibraryView />}
+            {view === "science" && (
+              <ScienceView mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
+            )}
+            {view === "user" && (
+              <PhoneMock mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
+            )}
+            {view === "edin" && <EdinChatView dreamEntries={dreamEntries} />}
+            {view === "future" && <FutureTechView />}
+            {view === "biofeedback" && <BiofeedbackLabView />}
+            {view === "microbiome" && <MicrobiomeView />}
+            {view === "other" && <OtherLanesView />}
+            {view === "edf" && <VerificationHub />}
+            {view === "coach" && isCoach && <CoachDashboardView />}
+          </motion.div>
+        </AnimatePresence>
 
         <div style={{ marginTop: 28, fontSize: 11, color: COLORS.inkDim, opacity: 0.7 }}>
           * Waveforms and band values are representative — modeled on the published characteristics of the
@@ -280,37 +293,58 @@ export default function App() {
       </div>
 
       {/* Persistent Edin access — reachable from any tab, not just the Edin tab itself */}
-      {!edinOpen && (
-        <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-          <div style={{
-            background: COLORS.bgPanel, border: `1px solid ${COLORS.gold}55`, borderRadius: 12,
-            padding: "8px 14px", fontSize: 12, color: COLORS.ink, boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
-            fontFamily: "Georgia, serif",
-          }}>
-            {greeting}
-          </div>
-          <button
-            onClick={() => setEdinOpen(true)}
-            style={{
-              width: 56, height: 56, borderRadius: "50%", border: "none", cursor: "pointer",
-              padding: 0, overflow: "hidden",
-              boxShadow: `0 4px 18px ${COLORS.gold}66`,
-            }}
-            title="Chat with Edin"
+      <AnimatePresence>
+        {!edinOpen && (
+          <motion.div
+            key="edin-bubble"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.6 }}
+            transition={{ duration: 0.22, ease: [0.34, 1.56, 0.64, 1] }}
+            style={{ position: "fixed", bottom: 24, right: 24, zIndex: 50, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}
           >
-            <img src={EDIN_ICON} alt="Edin" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          </button>
-        </div>
-      )}
-      {edinOpen && (
-        <div
-          style={{
-            position: "fixed", bottom: 24, right: 24, zIndex: 50,
-            width: 360, maxWidth: "90vw", maxHeight: "70vh",
-            background: COLORS.bg, border: `1px solid ${COLORS.grid}`, borderRadius: 16,
-            boxShadow: "0 8px 30px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden",
-          }}
-        >
+            <div style={{
+              background: COLORS.bgPanel, border: `1px solid ${COLORS.gold}55`, borderRadius: 12,
+              padding: "8px 14px", fontSize: 12, color: COLORS.ink, boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+              fontFamily: "Georgia, serif",
+            }}>
+              {greeting}
+            </div>
+            <motion.button
+              onClick={() => setEdinOpen(true)}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              animate={{
+                y: [0, -6, 0],
+                boxShadow: [`0 4px 18px ${COLORS.gold}66`, `0 8px 26px ${COLORS.gold}99`, `0 4px 18px ${COLORS.gold}66`],
+              }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+              style={{
+                width: 56, height: 56, borderRadius: "50%", border: "none", cursor: "pointer",
+                padding: 0, overflow: "hidden",
+              }}
+              title="Chat with Edin -- always nearby"
+            >
+              <img src={EDIN_ICON} alt="Edin" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {edinOpen && (
+          <motion.div
+            key="edin-popup"
+            initial={{ opacity: 0, scale: 0.9, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 16 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{
+              position: "fixed", bottom: 24, right: 24, zIndex: 50,
+              width: 360, maxWidth: "90vw", maxHeight: "70vh",
+              background: COLORS.bg, border: `1px solid ${COLORS.grid}`, borderRadius: 16,
+              boxShadow: "0 8px 30px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", overflow: "hidden",
+            }}
+          >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: `1px solid ${COLORS.grid}` }}>
             <div style={{ fontSize: 12, color: COLORS.teal, letterSpacing: 0.5 }}>EDIN — AVAILABLE ANYWHERE</div>
             <button onClick={() => setEdinOpen(false)} style={{ border: "none", background: "transparent", color: COLORS.inkDim, cursor: "pointer", fontSize: 16 }}>×</button>
@@ -322,8 +356,9 @@ export default function App() {
               onOpenFull={() => { setView("edin"); setEdinOpen(false); }}
             />
           </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
