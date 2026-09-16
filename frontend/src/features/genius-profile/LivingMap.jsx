@@ -175,38 +175,146 @@ function organicCurve(from, to, bow, segments = 12) {
   return pts;
 }
 
-// The substructure/signal layers of Body Systems get their own shape
-// language instead of reusing MapNode's icosahedron -- "we don't need
-// everything looking like solar system planet nodes." A capsule reads as
-// organic (an organ, a cell, a bundle of fiber) rather than a planet, and
-// seed varies each one's proportion/tilt a little so a cluster of these
-// doesn't look like identical stamped-out units, closer to how real
-// anatomy actually varies piece to piece.
-function OrganGlyph({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette, seed = 0 }) {
-  const coreRef = useRef();
-
-  useFrame((state) => {
-    if (coreRef.current && pulsing) {
-      const pulse = 0.7 + Math.sin(state.clock.elapsedTime * 1.7 + seed * 1.7) * 0.3;
-      coreRef.current.material.opacity = 0.45 * pulse;
+// Real, distinct, recognizable geometry per body system -- "a doctor
+// should look at it and say oh I get it." Every system used to share one
+// generic capsule/icosahedron differentiated only by color, which is
+// exactly why nothing looked recognizable. Each of these is built from
+// plain primitives (sphere/cylinder/cone/torus/box + line segments) --
+// not medically precise models, but real enough silhouettes that the
+// shape itself carries meaning: a neuron actually looks like a neuron,
+// a red blood cell like its biconcave disc, an osteocyte like the
+// spidery, star-shaped cell it actually is. Used at all three depths
+// (system/substructure/signal, see ShapeNode) at different sizes, so the
+// same recognizable shape represents that system whether you're looking
+// at the whole organ or one cell inside it -- "artwork inside of artwork"
+// with real content at every layer, not just the outermost one.
+function SystemShape({ systemKey, color }) {
+  switch (systemKey) {
+    case "nervous": {
+      const dendrites = [
+        [[0, 0.1, 0], [-0.18, 0.32, 0], [-0.3, 0.42, 0]],
+        [[0, 0.14, 0], [0.15, 0.36, 0.1], [0.24, 0.5, 0.16]],
+        [[0.1, 0.05, 0.05], [0.28, 0.2, 0.12]],
+      ];
+      return (
+        <>
+          <mesh><sphereGeometry args={[0.16, 12, 12]} /><meshBasicMaterial color={color} transparent opacity={0.5} /></mesh>
+          <Line points={[[0, 0, 0], [0, -0.5, 0]]} color={color} transparent opacity={0.7} lineWidth={1.4} />
+          {dendrites.map((pts, i) => <Line key={i} points={pts} color={color} transparent opacity={0.6} lineWidth={1} />)}
+        </>
+      );
     }
-  });
+    case "cardiovascular":
+      return (
+        <>
+          <mesh scale={[1, 0.32, 1]}><sphereGeometry args={[0.28, 16, 16]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <mesh scale={[1, 0.32, 1]}><torusGeometry args={[0.14, 0.045, 8, 20]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.65} /></mesh>
+        </>
+      );
+    case "skeletal": {
+      const spikes = Array.from({ length: 8 }, (_, i) => fibonacciSpherePosition(i, 8, 0.32));
+      return (
+        <>
+          <mesh><sphereGeometry args={[0.1, 10, 10]} /><meshBasicMaterial color={color} transparent opacity={0.55} /></mesh>
+          {spikes.map((dir, i) => <Line key={i} points={[[0, 0, 0], dir]} color={color} transparent opacity={0.6} lineWidth={1} />)}
+        </>
+      );
+    }
+    case "muscular":
+      return (
+        <>
+          <mesh rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.09, 0.09, 0.6, 10]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          {[-0.2, -0.07, 0.07, 0.2].map((x, i) => (
+            <mesh key={i} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}><torusGeometry args={[0.095, 0.012, 6, 16]} /><meshBasicMaterial color={color} transparent opacity={0.7} /></mesh>
+          ))}
+        </>
+      );
+    case "respiratory":
+      return (
+        <>
+          {[[0, 0, 0], [0.14, 0.08, 0.05], [-0.12, 0.1, -0.05], [0.03, -0.13, 0.08]].map((p, i) => (
+            <mesh key={i} position={p}><sphereGeometry args={[0.12, 10, 10]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          ))}
+        </>
+      );
+    case "lymphatic":
+      return (
+        <>
+          <mesh scale={[1, 0.75, 1.25]}><icosahedronGeometry args={[0.22, 1]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <mesh position={[0.22, 0.1, 0]} scale={0.6}><sphereGeometry args={[0.12, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <mesh position={[-0.15, -0.15, 0.12]} scale={0.5}><sphereGeometry args={[0.12, 8, 8]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+        </>
+      );
+    case "digestive":
+      return (
+        <>
+          <mesh><sphereGeometry args={[0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2]} /><meshBasicMaterial color={color} transparent opacity={0.4} side={2} /></mesh>
+          {[[-0.05, 0.18, 0], [0.05, 0.18, 0], [0, 0.18, 0.05], [0, 0.18, -0.05]].map((p, i) => (
+            <Line key={i} points={[p, [p[0] * 1.3, p[1] + 0.15, p[2] * 1.3]]} color={color} transparent opacity={0.6} lineWidth={1} />
+          ))}
+        </>
+      );
+    case "endocrine":
+      return (
+        <>
+          <mesh><sphereGeometry args={[0.2, 12, 12]} /><meshBasicMaterial color={color} transparent opacity={0.35} /></mesh>
+          {[[0.08, 0.05, 0.1], [-0.07, 0.09, -0.05], [0.02, -0.1, 0.08], [-0.09, -0.04, -0.09]].map((p, i) => (
+            <mesh key={i} position={p}><sphereGeometry args={[0.035, 6, 6]} /><meshBasicMaterial color={color} transparent opacity={0.9} /></mesh>
+          ))}
+        </>
+      );
+    case "urinary":
+      return (
+        <>
+          <mesh><boxGeometry args={[0.26, 0.26, 0.26]} /><meshBasicMaterial color={color} transparent opacity={0.3} /></mesh>
+          <mesh><boxGeometry args={[0.28, 0.28, 0.28]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.6} /></mesh>
+        </>
+      );
+    case "reproductive":
+      return (
+        <>
+          <mesh><sphereGeometry args={[0.2, 14, 14]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <mesh scale={1.15}><sphereGeometry args={[0.2, 14, 14]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.5} /></mesh>
+        </>
+      );
+    case "integumentary":
+      return (
+        <>
+          <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.22, 0.22, 0.05, 6]} /><meshBasicMaterial color={color} transparent opacity={0.4} /></mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]} scale={1.1}><cylinderGeometry args={[0.22, 0.22, 0.05, 6]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.55} /></mesh>
+        </>
+      );
+    default:
+      return (
+        <mesh><icosahedronGeometry args={[0.2, 1]} /><meshBasicMaterial color={color} wireframe transparent opacity={0.5} /></mesh>
+      );
+  }
+}
 
-  const scale = (isSelected ? 1.6 : 1) * size;
-  const length = 0.34 + (seed % 3) * 0.08;
-  const tilt = [seed * 0.7, seed * 1.3, seed * 0.4];
+// Position/click/label/pulsing wrapper for SystemShape -- the same role
+// MapNode plays for the generic nodes, but delegating the actual geometry
+// out so the same wrapper works for a whole system (bigger), a
+// substructure (medium), or a single signal (smaller), all using that
+// system's one recognizable shape rather than three different ones.
+// Pulsing breathes the whole group's scale instead of one mesh's opacity,
+// since a composite shape has several meshes, not one to target.
+function ShapeNode({ id, label, color, position, size = 1, pulsing, isSelected, onSelect, palette, systemKey }) {
+  const groupRef = useRef();
+
+  useFrame((state, delta) => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y += delta * 0.16;
+    const base = (isSelected ? 1.55 : 1) * size;
+    const pulse = pulsing ? 1 + Math.sin(state.clock.elapsedTime * 1.6 + position[0] + position[2]) * 0.08 : 1;
+    groupRef.current.scale.setScalar(base * pulse);
+  });
 
   return (
     <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(id); }}>
-      <mesh ref={coreRef} scale={scale} rotation={tilt}>
-        <capsuleGeometry args={[0.15, length, 4, 8]} />
-        <meshBasicMaterial color={color} transparent opacity={0.45} />
-      </mesh>
-      <mesh scale={scale * 1.18} rotation={tilt}>
-        <capsuleGeometry args={[0.15, length, 4, 8]} />
-        <meshBasicMaterial color={color} wireframe transparent opacity={isSelected ? 0.9 : 0.45} />
-      </mesh>
-      <Billboard position={[0, 0.55 * scale, 0]}>
+      <group ref={groupRef}>
+        <SystemShape systemKey={systemKey} color={color} />
+      </group>
+      <Billboard position={[0, 0.7 * size, 0]}>
         <Text fontSize={0.2} color={isSelected ? color : palette.labelColor} anchorX="center" anchorY="middle" outlineWidth={0.011} outlineColor={palette.labelOutline}>
           {label}
         </Text>
@@ -365,7 +473,7 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
             return (
               <group key={s.key}>
                 {!activeSystemKey && <Line points={[[0, s.position[1], 0], s.position]} color={s.color} transparent opacity={0.3} lineWidth={0.8} />}
-                <MapNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={0.85} position={s.position} pulsing={false} isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} />
+                <ShapeNode id={`body-system:${s.key}`} label={s.label} color={s.color} size={1.5} position={s.position} pulsing isSelected={selected === `body-system:${s.key}`} onSelect={onSelect} palette={palette} systemKey={s.key} />
 
                 {isOpen && subs.map((sub, i) => {
                   const pos = subPositions[i];
@@ -375,7 +483,7 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
                   return (
                     <group key={subId}>
                       <Line points={organicCurve(s.position, pos, 0.22)} color={s.color} transparent opacity={0.4} lineWidth={0.7} />
-                      <OrganGlyph id={subId} label={sub.label} color={s.color} size={0.85} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} seed={i} />
+                      <ShapeNode id={subId} label={sub.label} color={s.color} size={1} position={pos} pulsing isSelected={selected === subId} onSelect={onSelect} palette={palette} systemKey={s.key} />
 
                       {isSubOpen && signalPositions.map((npos, j) => {
                         const signalId = `body-signal:${s.key}__${sub.key}__${j}`;
@@ -385,7 +493,7 @@ function BodyRegion({ selected, onSelect, palette, bodyView }) {
                             <Line points={organicCurve(pos, npos, 0.12)} color={s.color} transparent opacity={0.4} lineWidth={0.55} />
                             {/* synapse-style cross-links between neighbors -- network look, not a flat ring */}
                             <Line points={organicCurve(npos, prev, 0.08)} color={s.color} transparent opacity={0.22} lineWidth={0.4} />
-                            <OrganGlyph id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.5} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} seed={j + 0.5} />
+                            <ShapeNode id={signalId} label={`${s.signalLabel || "Signal"} ${j + 1}`} color={s.color} size={0.6} position={npos} pulsing isSelected={selected === signalId} onSelect={onSelect} palette={palette} systemKey={s.key} />
                           </group>
                         );
                       })}
