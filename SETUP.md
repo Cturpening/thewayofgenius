@@ -64,12 +64,17 @@ Once the project is ready:
 6. To double-check: click **Table Editor** in the sidebar. You should see
    `profiles`, `dream_journal_entries`, `genius_constitution_results`,
    `follow_through_log`, `goals`, `calendar_events`, `coach_notes`,
-   `symbol_validations`, and `flagged_events` listed.
+   `symbol_validations`, `neuron_records`, and `flagged_events` listed.
 
-If you ever need to re-run this (e.g. after editing `schema.sql`), be aware
-the script will fail if a table already exists — that's a safety feature,
-not a bug. Ask for help before dropping/recreating tables that might have
-real data in them.
+`schema.sql` is genuinely safe to re-run any time the file changes (new
+table, new column) -- every statement either creates something only if
+it's missing, or replaces a policy/function/trigger definition, rather
+than erroring on "already exists." Re-copy the whole file and re-run it
+the same way whenever this repo's `database/schema.sql` has changed since
+you last ran it; it will never drop a table or touch existing rows. (An
+earlier version of this note said re-running would fail on an existing
+table -- that hadn't been true for a while and was actively misleading;
+fixed here.)
 
 ---
 
