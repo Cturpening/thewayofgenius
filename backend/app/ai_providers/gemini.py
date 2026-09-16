@@ -69,3 +69,75 @@ def generate(system_prompt: str, user_content: str) -> str:
     if not text:
         raise ProviderError("Gemini returned an empty response")
     return text
+
+
+def _declaration_to_function_declaration(decl: dict) -> "types.FunctionDeclaration":
+    return types.FunctionDeclaration(name=decl["name"], description=decl["description"], parameters=decl["parameters"])
+
+
+def generate_with_tools(
+    system_prompt: str,
+    user_content: str,
+    tool_declarations: list[dict],
+    tool_executor,
+    *,
+    max_rounds: int = 4,
+) -> tuple[str, list[dict]]:
+    """Like generate(), but lets the model call real functions mid-reply --
+    the actual mechanism behind "Edin can edit this conversationally" (see
+    app/neuron_tools.py and app/edin_ai.py's generate_chat_reply_with_tools).
+
+    tool_declarations: Gemini function-calling schema, [{"name", "description",
+    "parameters"}, ...] -- JSON-Schema-shaped `parameters`, same shape
+    app/neuron_tools.py's NEURON_TOOL_DECLARATIONS already uses.
+    tool_executor: (name: str, args: dict) -> dict, called for real for every
+    function call the model makes -- see app/neuron_tools.py's
+    make_tool_executor for the one real implementation today.
+
+    Returns (final_text, calls_made) -- calls_made is every {"name", "args"}
+    the model actually invoked, in order, so the caller can log what Edin
+    did into chat_messages.context_note rather than that being invisible.
+    Tool use isn't retried against the backup provider on failure (see
+    edin_ai.py) -- Claude's provider here has no matching implementation
+    yet, so a Gemini outage falls back to a plain, tool-less reply instead
+    of silently losing the ability to act.
+    """
+    settings = get_settings()
+    if not is_configured():
+        raise ProviderError("GEMINI_API_KEY / GEMINI_MODEL not configured")
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    tool = types.Tool(function_declarations=[_declaration_to_function_declaration(d) for d in tool_declarations])
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt, max_output_tokens=600, temperature=0.7, tools=[tool]
+    )
+
+    contents = [types.Content(role="user", parts=[types.Part(text=user_content)])]
+    calls_made: list[dict] = []
+
+    for _ in range(max_rounds):
+        try:
+            response = client.models.generate_content(model=settings.gemini_model, contents=contents, config=config)
+        except Exception as exc:  # pragma: no cover -- network/SDK errors
+            raise ProviderError(f"Gemini call failed: {exc}") from exc
+
+        calls = response.function_calls or []
+        if not calls:
+            text = (response.text or "").strip()
+            if not text:
+                raise ProviderError("Gemini returned an empty response")
+            return text, calls_made
+
+        # The model wants to act before it finishes replying: keep its own
+        # turn (the function-call parts) in the transcript, actually run
+        # each tool, and feed the real result back before asking again.
+        contents.append(response.candidates[0].content)
+        response_parts = []
+        for call in calls:
+            args = dict(call.args or {})
+            result = tool_executor(call.name, args)
+            calls_made.append({"name": call.name, "args": args})
+            response_parts.append(types.Part.from_function_response(name=call.name, response=result))
+        contents.append(types.Content(role="user", parts=response_parts))
+
+    raise ProviderError("Gemini kept calling tools without ever finishing a reply")

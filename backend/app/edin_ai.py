@@ -179,6 +179,60 @@ def generate_constitution_reflection(
     )
 
 
+def generate_chat_reply_with_tools(
+    history: list[dict],
+    context_summary: str,
+    tool_declarations: list[dict],
+    tool_executor,
+    user_name: str | None = None,
+) -> tuple[str, list[dict]]:
+    """Like generate_chat_reply below, but gives Edin real tool-use for this
+    one call -- backlog #27 ("give Edin real tool use"), Phase 1, scoped to
+    app/neuron_tools.py's neuron-record actions. Returns (reply_text,
+    calls_made) -- calls_made is every tool Edin actually invoked, so the
+    caller (app/main.py's chat route) can log what she did, not just what
+    she said.
+
+    Only Gemini has a tool-calling implementation today (see
+    ai_providers/gemini.py's generate_with_tools) -- Claude's provider here
+    doesn't yet. If Gemini isn't configured or the call fails, this falls
+    back to a plain, tool-less reply via generate_chat_reply rather than
+    raising: Edin staying able to talk matters more than her being able to
+    act on any one message.
+    """
+    system_prompt = load_system_prompt()
+    transcript = "\n".join(f"{'User' if m['role'] == 'user' else 'Edin'}: {m['content']}" for m in history)
+    user_content = (
+        f"{_name_line(user_name)}Real context about this account right now: {context_summary}\n\n"
+        f"Conversation so far:\n{transcript}\n\n"
+        "Write Edin's next reply in this conversation, per your instructions. This is real "
+        "back-and-forth dialogue, not a one-shot reflection. You have real tools available -- "
+        "use them when the user is actually asking you to save or log something for the body-map "
+        "node they currently have open, not speculatively."
+    )
+
+    if gemini.is_configured():
+        try:
+            text, calls_made = gemini.generate_with_tools(system_prompt, user_content, tool_declarations, tool_executor)
+            if passes_language_line(text):
+                return text, calls_made
+            # Same one-retry-then-fallback contract as generate_reflection below,
+            # but tools stay live on the retry too -- a corrected reply might
+            # still need to act.
+            retry_content = (
+                f"{user_content}\n\nYour previous draft used clinical/diagnostic language, which "
+                "you must never do. Rewrite it without naming any condition or using diagnostic "
+                "language, describing the pattern in the data instead."
+            )
+            retry_text, more_calls = gemini.generate_with_tools(system_prompt, retry_content, tool_declarations, tool_executor)
+            if passes_language_line(retry_text):
+                return retry_text, calls_made + more_calls
+        except ProviderError as exc:
+            logger.warning("Gemini tool-use call failed, falling back to a plain reply: %s", exc)
+
+    return generate_chat_reply(history, context_summary, user_name=user_name), []
+
+
 def generate_chat_reply(history: list[dict], context_summary: str, user_name: str | None = None) -> str:
     """Edin's next reply in the real, persisted live chat -- the one
     surface where actual back-and-forth conversation happens, so the

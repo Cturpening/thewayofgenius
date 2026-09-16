@@ -7,13 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app import neuron_tools
 from app.auth import get_current_coach_id, get_current_user_id
 from app.crisis_detection import classify_crisis_tier, override_message, requires_override
 from app.config import get_settings
 from app.database import engine, get_db
 from app.edin_ai import (
     EdinAIError,
-    generate_chat_reply,
+    generate_chat_reply_with_tools,
     generate_constitution_reflection,
     generate_dream_reflection,
     generate_follow_through_reflection,
@@ -69,6 +70,7 @@ from app.schemas import (
     NeuronRecordUpsert,
     SymbolValidationCreate,
     SymbolValidationOut,
+    ToolCallOut,
 )
 
 logger = logging.getLogger("edin")
@@ -557,59 +559,27 @@ def list_neuron_records(db: Session = Depends(get_db), user_id: UUID = Depends(g
 
 
 @app.put("/neuron-records/{node_key}", response_model=NeuronRecordOut)
-def upsert_neuron_record(
+def put_neuron_record(
     node_key: str,
     payload: NeuronRecordUpsert,
     db: Session = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    record = (
-        db.query(NeuronRecord)
-        .filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key)
-        .first()
-    )
-    updates = payload.model_dump(exclude_unset=True)
-    if record is None:
-        record = NeuronRecord(user_id=user_id, node_key=node_key, **updates)
-        db.add(record)
-    else:
-        for field, value in updates.items():
-            setattr(record, field, value)
-    db.commit()
-    db.refresh(record)
-    return record
+    return neuron_tools.upsert_neuron_record(db, user_id, node_key, **payload.model_dump(exclude_unset=True))
 
 
 @app.post("/neuron-records/{node_key}/log-practice", response_model=NeuronRecordOut)
-def log_neuron_practice(
-    node_key: str, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
-):
+def post_neuron_practice(node_key: str, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
     """Records one practice session against this node -- the "watching a
     backflip get better in real time" idea made real: each call is one more
     rep, and the pathway visibly builds from it instead of needing a manual
     status change every time. 'wounded' is left alone here on purpose (see
     schemas.py's NeuronRecordUpsert) -- only an explicit edit clears it,
     since a few good reps don't erase what made a pathway weak in the
-    first place."""
-    record = (
-        db.query(NeuronRecord)
-        .filter(NeuronRecord.user_id == user_id, NeuronRecord.node_key == node_key)
-        .first()
-    )
-    if record is None:
-        record = NeuronRecord(user_id=user_id, node_key=node_key)
-        db.add(record)
-
-    record.practice_count += 1
-    record.last_practiced_at = datetime.now(timezone.utc)
-    if record.progress_state == "unformed":
-        record.progress_state = "practicing"
-    elif record.progress_state == "practicing" and record.practice_count >= 5:
-        record.progress_state = "strengthened"
-
-    db.commit()
-    db.refresh(record)
-    return record
+    first place. Shared with Edin's own tool-calling (see app/neuron_tools.py)
+    so a user's manual click and Edin doing it conversationally are the
+    exact same write path."""
+    return neuron_tools.log_neuron_practice(db, user_id, node_key)
 
 
 @app.delete("/neuron-records/{node_key}", status_code=204)
@@ -709,6 +679,7 @@ def send_chat_message(
         )
 
     context = _chat_context_summary(db, user_id)
+    tool_calls: list[dict] = []
     if edin_ai_configured():
         history = (
             db.query(ChatMessage)
@@ -719,9 +690,14 @@ def send_chat_message(
         )
         history.reverse()
         try:
-            reply_text = generate_chat_reply(
+            # Real tool-use (backlog #27, Phase 1) only when the frontend says a
+            # body-map node is actually open -- see neuron_tools.make_tool_executor's
+            # own guard against Edin acting on a node nobody has open.
+            reply_text, tool_calls = generate_chat_reply_with_tools(
                 [{"role": m.role, "content": m.content} for m in history],
                 context,
+                neuron_tools.NEURON_TOOL_DECLARATIONS,
+                neuron_tools.make_tool_executor(db, user_id, payload.node_key),
                 user_name=_display_name(db, user_id),
             )
         except EdinAIError as exc:
@@ -730,7 +706,8 @@ def send_chat_message(
     else:
         reply_text = "Edin's real conversation isn't configured yet — no AI provider is set up (GEMINI_API_KEY/ANTHROPIC_API_KEY)."
 
-    edin_message = ChatMessage(user_id=user_id, role="edin", content=reply_text, context_note=context)
+    note = context if not tool_calls else f"{context} Tool calls made: {tool_calls}"
+    edin_message = ChatMessage(user_id=user_id, role="edin", content=reply_text, context_note=note)
     db.add(edin_message)
     db.commit()
     db.refresh(user_message)
@@ -739,6 +716,7 @@ def send_chat_message(
         user_message=ChatMessageOut.model_validate(user_message),
         edin_message=ChatMessageOut.model_validate(edin_message),
         crisis_response=None,
+        tool_calls=[ToolCallOut(**c) for c in tool_calls],
     )
 
 

@@ -13,7 +13,7 @@ import { fetchChatMessages, sendChatMessage } from "./api";
 // account context -- it just doesn't render the full scrollback and extra
 // chrome (journal strip, Constitution check-in, disclaimer) in a 360px
 // popup. `onOpenFull`, when given, renders a link back to the full tab.
-export default function EdinChatView({ dreamEntries = [], compact = false, onOpenFull = null }) {
+export default function EdinChatView({ dreamEntries = [], compact = false, onOpenFull = null, activeNodeKey = null }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -88,8 +88,12 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
     // "Live chat conversation" context type. See backend/app/main.py's
     // /chat-messages and protocols/03_Crisis_Escalation_Protocol.md.
     try {
-      const { userMessage, edinMessage, crisisResponse } = await sendChatMessage(text);
-      const fullEdinMessage = { ...edinMessage, crisis: !!crisisResponse };
+      const { userMessage, edinMessage, crisisResponse, toolCalls } = await sendChatMessage(text, activeNodeKey);
+      // toolCalls is real, not decorative -- see backend/app/neuron_tools.py.
+      // Surfaced right on the message so it's visible when Edin actually
+      // acted, not just talked, same honesty rule as every REAL/ILLUSTRATIVE
+      // label elsewhere in this app.
+      const fullEdinMessage = { ...edinMessage, crisis: !!crisisResponse, toolCalls };
       setMessages((msgs) => [...msgs, userMessage, fullEdinMessage]);
       revealMessage(fullEdinMessage);
     } catch (err) {
@@ -256,6 +260,15 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
               </div>
               {m.from === "edin" && <SpeakButton text={m.text} small />}
             </div>
+            {m.toolCalls?.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: 34 }}>
+                {m.toolCalls.map((call, ci) => (
+                  <span key={ci} style={{ fontSize: 10, color: COLORS.teal, background: `${COLORS.teal}18`, borderRadius: 10, padding: "2px 8px" }}>
+                    ✓ {call.name === "log_neuron_practice" ? "Logged a practice" : "Saved to this node"}
+                  </span>
+                ))}
+              </div>
+            )}
             {m.options && activeScenario && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginLeft: 34, maxWidth: "70%" }}>
                 {m.options.map((o, oi) => (
@@ -304,6 +317,12 @@ export default function EdinChatView({ dreamEntries = [], compact = false, onOpe
 
       {sendError && (
         <div style={{ fontSize: 12, color: COLORS.coral }}>{sendError}</div>
+      )}
+
+      {activeNodeKey && (
+        <div style={{ fontSize: 10.5, color: COLORS.teal, fontStyle: "italic" }}>
+          Edin can save a story or log a practice to the body-map node you have open right now, if you ask her to.
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 8 }}>

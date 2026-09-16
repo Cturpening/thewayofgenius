@@ -20,14 +20,22 @@ export async function fetchChatMessages() {
 // shows the same conversation. crisisResponse is only present when
 // Track B's override fired on this message, same contract as every
 // other crisis_response in this app.
-export async function sendChatMessage(text) {
+//
+// `nodeKey` -- the body-map node the user currently has open (see
+// genius-profile/NeuronRecordEditor.jsx), if any -- is what lets Edin's
+// real tool-use (backlog #27, Phase 1) act on "this" node when asked to
+// save a story or log a practice, without her ever guessing which node
+// that is. Optional: most chat messages have nothing to do with the body
+// map at all.
+export async function sendChatMessage(text, nodeKey = null) {
   const result = await apiRequest(`/chat-messages`, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, node_key: nodeKey || undefined }),
   });
   return {
     userMessage: fromApiMessage(result.user_message),
     edinMessage: fromApiMessage(result.edin_message),
     crisisResponse: result.crisis_response || null,
+    toolCalls: result.tool_calls || [],
   };
 }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Stars, Sparkles, Billboard, Text, Line } from "@react-three/drei";
 import { COLORS } from "../../theme/tokens";
@@ -820,7 +820,7 @@ const LAYER_META = {
 const DEFAULT_YAW = -0.5, DEFAULT_PITCH = 0.22;
 const YAW_STEP = 0.28, PITCH_STEP = 0.18, ZOOM_FACTOR = 0.82;
 
-export default function LivingMap({ dreamEntries = [], teamMembers = [], neuronRecords = {}, onSaveRecord, onLogPractice }) {
+export default function LivingMap({ dreamEntries = [], teamMembers = [], neuronRecords = {}, onSaveRecord, onLogPractice, onActiveNodeChange }) {
   const [layers, setLayers] = useState({ architecture: true, symbols: true, body: false, team: false });
   const [bodyView, setBodyView] = useState("symbolic"); // symbolic | systems -- one at a time, not both
   const [selected, setSelected] = useState(null);
@@ -882,6 +882,15 @@ export default function LivingMap({ dreamEntries = [], teamMembers = [], neuronR
   const bodySel = parseBodySelection(selected);
   const bodySelSystem = bodySel.systemKey ? BODY_SYSTEMS.find((x) => x.key === bodySel.systemKey) : null;
   const bodySelSub = bodySelSystem && bodySel.subKey ? bodySelSystem.substructures.find((x) => x.key === bodySel.subKey) : null;
+
+  // Same "tell Edin's chat what's open" wiring as BodySystemsMapView.jsx --
+  // only a body-signal selection counts as a node Edin can act on; every
+  // other selection (architecture, symbols, a system/substructure overview)
+  // clears it, since those aren't neuron_records nodes.
+  useEffect(() => {
+    onActiveNodeChange?.(bodySel.layer === "body-signal" ? selected : null);
+    return () => onActiveNodeChange?.(null);
+  }, [selected, bodySel.layer, onActiveNodeChange]);
 
   let panel = null;
   if (selLayer === "architecture") {

@@ -333,6 +333,17 @@ class ChatMessageOut(BaseModel):
 
 class ChatMessageCreate(BaseModel):
     text: str
+    # The body-map node the user currently has open, if any (see
+    # genius-profile/NeuronRecordEditor.jsx's node_key format) -- lets Edin's
+    # real tool-use (app/neuron_tools.py, backlog #27 Phase 1) act on "this
+    # node" without guessing which one that is. None for every chat message
+    # that has nothing to do with the body map.
+    node_key: Optional[str] = None
+
+
+class ToolCallOut(BaseModel):
+    name: str
+    args: dict
 
 
 class ChatMessageSendResponse(BaseModel):
@@ -343,6 +354,11 @@ class ChatMessageSendResponse(BaseModel):
     # separately too so the frontend can style it distinctly, same
     # contract as every other crisis_response in this app.
     crisis_response: Optional[str] = None
+    # Every real tool Edin actually invoked while generating this reply --
+    # empty unless node_key was set and she chose to act. Never invented:
+    # this is the literal record from app/ai_providers/gemini.py's
+    # generate_with_tools, not a guess at what she "probably" did.
+    tool_calls: List[ToolCallOut] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

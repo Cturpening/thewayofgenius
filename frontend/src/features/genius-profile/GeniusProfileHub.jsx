@@ -33,7 +33,7 @@ const FLAT_LENSES = {
 // six on-screen buttons (turn/zoom/reset) are the *only* thing that ever
 // moves the view afterward. See LivingMap's own CameraRig for how that
 // works.
-export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEntries = [] }) {
+export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEntries = [], onActiveNodeChange }) {
   const [tab, setTab] = useState("map");
   const [mode, setMode] = useState("flat"); // flat | hologram
   const [flatLens, setFlatLens] = useState("weave");
@@ -132,7 +132,12 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
               {flatLens === "weave" && <GeniusProfileMap setView={setView} constitutionAnswers={constitutionAnswers} />}
               {flatLens === "symbols" && <SymbolConstellation dreamEntries={dreamEntries} />}
               {flatLens === "body" && (
-                <BodySystemsMapView neuronRecords={neuronRecords} onSaveRecord={saveRecord} onLogPractice={logPractice} />
+                <BodySystemsMapView
+                  neuronRecords={neuronRecords}
+                  onSaveRecord={saveRecord}
+                  onLogPractice={logPractice}
+                  onActiveNodeChange={onActiveNodeChange}
+                />
               )}
               {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
             </>
@@ -144,6 +149,7 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
                 neuronRecords={neuronRecords}
                 onSaveRecord={saveRecord}
                 onLogPractice={logPractice}
+                onActiveNodeChange={onActiveNodeChange}
               />
             </Suspense>
           )}

@@ -34,6 +34,12 @@ export default function App() {
   const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionAnswers, setConstitutionAnswers] = useState([]);
   const [isCoach, setIsCoach] = useState(false);
+  // The body-map node currently open in the Genius Profile, if any -- lifted
+  // up here (not owned by GeniusProfileHub) because Edin's chat widget is
+  // mounted globally, as a sibling, not a child of it. Lets Edin's real
+  // tool-use (backend/app/neuron_tools.py) act on "this node" when asked,
+  // without her ever guessing which one that is.
+  const [activeNeuronNodeKey, setActiveNeuronNodeKey] = useState(null);
 
   useEffect(() => {
     if (!session) {
@@ -195,7 +201,12 @@ export default function App() {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {view === "map" && (
-              <GeniusProfileHub setView={setView} constitutionAnswers={constitutionAnswers} dreamEntries={dreamEntries} />
+              <GeniusProfileHub
+                setView={setView}
+                constitutionAnswers={constitutionAnswers}
+                dreamEntries={dreamEntries}
+                onActiveNodeChange={setActiveNeuronNodeKey}
+              />
             )}
             {view === "dojo" && (
               <PracticeDojoView
@@ -213,7 +224,7 @@ export default function App() {
             {view === "user" && (
               <PhoneMock mode={mode} states={states} activeKey={activeKey} setActiveKey={setActiveKey} />
             )}
-            {view === "edin" && <EdinChatView dreamEntries={dreamEntries} />}
+            {view === "edin" && <EdinChatView dreamEntries={dreamEntries} activeNodeKey={activeNeuronNodeKey} />}
             {view === "future" && <FutureTechView />}
             {view === "biofeedback" && <BiofeedbackLabView />}
             {view === "microbiome" && <MicrobiomeView />}
@@ -291,6 +302,7 @@ export default function App() {
               dreamEntries={dreamEntries}
               compact
               onOpenFull={() => { setView("edin"); setEdinOpen(false); }}
+              activeNodeKey={activeNeuronNodeKey}
             />
           </div>
           </motion.div>

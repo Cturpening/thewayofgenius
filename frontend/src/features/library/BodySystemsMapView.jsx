@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { COLORS } from "../../theme/tokens";
 import { BODY_SYSTEMS } from "./data/bodySystems";
 import { BODY_SYMBOLS } from "./data/bodySymbols";
@@ -121,7 +121,7 @@ const SYMBOL_MARKER_2D = {
   gut: { cx: 130, cy: 215 },
 };
 
-export default function BodySystemsMapView({ neuronRecords = {}, onSaveRecord, onLogPractice }) {
+export default function BodySystemsMapView({ neuronRecords = {}, onSaveRecord, onLogPractice, onActiveNodeChange }) {
   const [systemKey, setSystemKey] = useState("nervous");
   const [subKey, setSubKey] = useState(null);
   const [signalIdx, setSignalIdx] = useState(null);
@@ -129,6 +129,15 @@ export default function BodySystemsMapView({ neuronRecords = {}, onSaveRecord, o
   const system = BODY_SYSTEMS.find((s) => s.key === systemKey);
   const sub = subKey ? system.substructures.find((x) => x.key === subKey) : null;
   const signalNodeKey = sub && signalIdx !== null ? `body-signal:${systemKey}__${subKey}__${signalIdx}` : null;
+
+  // Tells Edin's chat (see App.jsx's activeNeuronNodeKey) which node is open
+  // right now, so a real tool-use request ("save that as my story") always
+  // acts on the node the user is actually looking at. Cleared on unmount --
+  // navigating away means there's no longer an open node to act on.
+  useEffect(() => {
+    onActiveNodeChange?.(signalNodeKey);
+    return () => onActiveNodeChange?.(null);
+  }, [signalNodeKey, onActiveNodeChange]);
 
   const pickSystem = (key) => { setSystemKey(key); setSubKey(null); setSignalIdx(null); };
   const pickSub = (key) => { setSubKey(key); setSignalIdx(null); };
