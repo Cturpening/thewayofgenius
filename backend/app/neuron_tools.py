@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import NeuronRecord
+from app.track_b import run_track_b
 
 _EDITABLE_FIELDS = ("story", "skill", "practice_goal", "vitals_note", "dream_content", "progress_state")
 
@@ -29,18 +30,39 @@ def _get_or_create(db: Session, user_id: UUID, node_key: str) -> NeuronRecord:
     return record
 
 
-def upsert_neuron_record(db: Session, user_id: UUID, node_key: str, **fields) -> NeuronRecord:
+_FREE_TEXT_FIELDS = ("story", "skill", "practice_goal", "vitals_note", "dream_content")
+
+
+def upsert_neuron_record(db: Session, user_id: UUID, node_key: str, **fields) -> tuple[NeuronRecord, str | None]:
     """fields is whatever subset of _EDITABLE_FIELDS the caller actually
     has -- None values are skipped, not written, same "only what's present
-    gets updated" contract as NeuronRecordUpsert in app/schemas.py."""
+    gets updated" contract as NeuronRecordUpsert in app/schemas.py.
+
+    Runs Track B on the combined free-text fields before writing -- these
+    are some of the most personal content in the whole app (a real story,
+    a vitals note, dream content, in the user's own words), and every
+    other domain module in this app (dream journal, goals, follow-through,
+    calendar, the Constitution) already runs this same check on its own
+    free text. This module didn't, until a security review caught it --
+    see track_b.py's own docstring: this is supposed to be a hard,
+    non-bypassable check on every write path that can carry real user
+    text, not one with a silent exception. The record still saves either
+    way (Track B never blocks a save, same rule everywhere else) --
+    returns (record, crisis_response), crisis_response only set when the
+    override fired.
+    """
     record = _get_or_create(db, user_id, node_key)
     for field in _EDITABLE_FIELDS:
         value = fields.get(field)
         if value is not None:
             setattr(record, field, value)
+
+    combined_text = " ".join(fields[f] for f in _FREE_TEXT_FIELDS if fields.get(f))
+    crisis_response = run_track_b(db, user_id, combined_text) if combined_text else None
+
     db.commit()
     db.refresh(record)
-    return record
+    return record, crisis_response
 
 
 def log_neuron_practice(db: Session, user_id: UUID, node_key: str) -> NeuronRecord:
@@ -141,7 +163,9 @@ def make_tool_executor(db: Session, user_id: UUID, node_key: str | None):
             progress_state = args.get("progress_state")
             if progress_state is not None and progress_state not in _VALID_PROGRESS_STATES:
                 args = {**args, "progress_state": None}
-            record = upsert_neuron_record(db, user_id, node_key, **args)
+            record, crisis_response = upsert_neuron_record(db, user_id, node_key, **args)
+            if crisis_response:
+                return {"saved": True, "crisis_response": crisis_response}
             return {"saved": True, "record": _record_to_dict(record)}
 
         if name == "get_current_node_record":

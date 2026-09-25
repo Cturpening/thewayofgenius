@@ -66,6 +66,7 @@ from app.schemas import (
     MembershipPlanOut,
     MembershipPlanUpdate,
     NeuronRecordOut,
+    NeuronRecordResponse,
     NeuronRecordUpsert,
     SymbolValidationCreate,
     SymbolValidationOut,
@@ -523,14 +524,17 @@ def list_neuron_records(db: Session = Depends(get_db), user_id: UUID = Depends(g
     return db.query(NeuronRecord).filter(NeuronRecord.user_id == user_id).all()
 
 
-@app.put("/neuron-records/{node_key}", response_model=NeuronRecordOut)
+@app.put("/neuron-records/{node_key}", response_model=NeuronRecordResponse)
 def put_neuron_record(
     node_key: str,
     payload: NeuronRecordUpsert,
     db: Session = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    return neuron_tools.upsert_neuron_record(db, user_id, node_key, **payload.model_dump(exclude_unset=True))
+    record, crisis_response = neuron_tools.upsert_neuron_record(
+        db, user_id, node_key, **payload.model_dump(exclude_unset=True)
+    )
+    return NeuronRecordResponse(record=NeuronRecordOut.model_validate(record), crisis_response=crisis_response)
 
 
 @app.post("/neuron-records/{node_key}/log-practice", response_model=NeuronRecordOut)

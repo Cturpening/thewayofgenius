@@ -33,6 +33,13 @@ export async function fetchNeuronRecords() {
 // `fields` is whatever subset of {story, skill, practiceGoal, vitalsNote,
 // dreamContent, progressState} the caller's form actually shows -- only
 // those keys are sent, matching NeuronRecordUpsert's all-optional fields.
+//
+// Returns { record, crisisResponse } -- crisisResponse is only present
+// when Track B's crisis detection fired on one of this save's free-text
+// fields (story/skill/practiceGoal/vitalsNote/dreamContent), same
+// contract as every other crisis_response in this app. The record is
+// always saved either way; surface crisisResponse to the user exactly as
+// given, same as the Dream Journal does (see dream-journal/api.js).
 export async function saveNeuronRecord(nodeKey, fields) {
   const body = {};
   if (fields.story !== undefined) body.story = fields.story;
@@ -46,7 +53,7 @@ export async function saveNeuronRecord(nodeKey, fields) {
     method: "PUT",
     body: JSON.stringify(body),
   });
-  return fromApiRecord(updated);
+  return { record: fromApiRecord(updated.record), crisisResponse: updated.crisis_response || null };
 }
 
 // One practice rep against this node -- see log_neuron_practice in

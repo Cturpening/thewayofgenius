@@ -53,11 +53,17 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
     fetchNeuronRecords().then(setNeuronRecords).catch((err) => console.error("Failed to load neuron records:", err));
   }, []);
 
+  // Returns a promise resolving to crisisResponse (or null) so
+  // NeuronRecordEditor can show Track B's override message when it fires
+  // -- see neuronRecordsApi.js's saveNeuronRecord.
   const saveRecord = (nodeKey, fields) => {
     setNeuronRecords((cur) => ({ ...cur, [nodeKey]: { ...cur[nodeKey], nodeKey, ...fields } }));
-    saveNeuronRecord(nodeKey, fields)
-      .then((record) => setNeuronRecords((cur) => ({ ...cur, [nodeKey]: record })))
-      .catch((err) => console.error("Failed to save neuron record:", err));
+    return saveNeuronRecord(nodeKey, fields)
+      .then(({ record, crisisResponse }) => {
+        setNeuronRecords((cur) => ({ ...cur, [nodeKey]: record }));
+        return crisisResponse;
+      })
+      .catch((err) => { console.error("Failed to save neuron record:", err); return null; });
   };
 
   const logPractice = (nodeKey) => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { COLORS } from "../../theme/tokens";
+import { EDIN_ICON } from "../../assets/edinIcon";
 
 // Shared by both Flat (BodySystemsMapView) and Hologram (LivingMap) so a
 // signal/neuron node's real story/skill/practice-goal/vitals/dream content
@@ -22,6 +23,7 @@ export function NeuronRecordEditor({ nodeKey, record, onSave, onLogPractice, acc
     dreamContent: record?.dreamContent || "",
   });
   const [dirty, setDirty] = useState(false);
+  const [crisisMessage, setCrisisMessage] = useState(null);
 
   // Re-sync whenever the node itself changes (or a fresh fetch resolves) --
   // without this, switching nodes would keep showing the previous node's
@@ -58,6 +60,20 @@ export function NeuronRecordEditor({ nodeKey, record, onSave, onLogPractice, acc
 
   return (
     <div style={{ border: `1px solid ${accentColor}44`, borderRadius: 10, padding: "12px 14px", marginTop: 14 }}>
+      {crisisMessage && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>{crisisMessage}</div>
+          </div>
+          <button
+            onClick={() => setCrisisMessage(null)}
+            style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
+          >
+            I've seen this
+          </button>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: state.color, display: "inline-block" }} />
@@ -92,7 +108,11 @@ export function NeuronRecordEditor({ nodeKey, record, onSave, onLogPractice, acc
           )}
         </div>
         <button
-          onClick={() => { onSave(nodeKey, draft); setDirty(false); }}
+          onClick={async () => {
+            setDirty(false);
+            const crisisResponse = await onSave(nodeKey, draft);
+            if (crisisResponse) setCrisisMessage(crisisResponse);
+          }}
           disabled={!dirty}
           style={{
             padding: "5px 14px", borderRadius: 8, border: `1px solid ${dirty ? accentColor : COLORS.grid}`,

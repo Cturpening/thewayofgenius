@@ -422,3 +422,11 @@ class NeuronRecordOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class NeuronRecordResponse(BaseModel):
+    record: NeuronRecordOut
+    # Present only when Track B's crisis override fired on this save's
+    # free-text fields (see app/neuron_tools.py's upsert_neuron_record) --
+    # same contract as every other crisis_response in this app.
+    crisis_response: Optional[str] = None
