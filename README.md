@@ -18,6 +18,10 @@ database/   Supabase Postgres schema (SQL)
 walks through creating a free Supabase account and getting everything
 running on your computer, in plain English.
 
+**Ready to put this somewhere real people can reach it?** See
+[`DEPLOY.md`](./DEPLOY.md) — same plain-English style, covers hosting the
+backend and frontend for real, once `SETUP.md` is done.
+
 ## Quick reference (once already set up)
 
 ```bash

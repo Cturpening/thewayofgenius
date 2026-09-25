@@ -1,0 +1,44 @@
+# Render.com blueprint for the FastAPI backend. See ../DEPLOY.md for the
+# full plain-language walkthrough (this file alone doesn't explain how to
+# actually get a Render account, connect this repo, or set the secret env
+# vars below -- Render deliberately never stores real secrets in a file
+# committed to the repo, so DATABASE_URL/GEMINI_API_KEY/etc. all have
+# sync: false and get typed into Render's dashboard by hand instead).
+#
+# To use: Render dashboard -> New -> Blueprint -> pick this repo. Render
+# reads this file automatically and proposes the service below.
+services:
+  - type: web
+    name: edin-backend
+    runtime: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        sync: false
+      # The real deployed frontend URL(s), comma-separated -- see
+      # app/config.py's cors_origins. Set this AFTER the frontend is
+      # deployed and its real URL is known (see DEPLOY.md's ordering note).
+      - key: ALLOWED_ORIGINS
+        sync: false
