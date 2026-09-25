@@ -21,9 +21,8 @@ export async function fetchCheckIn() {
 }
 
 // --- Inner Team (see backend/app/team_tools.py) -----------------------
-// Real persistence -- until now this was pure frontend state
-// (INITIAL_TEAM_MEMBERS reset back on every reload). Same shape either
-// way: { id, name, mode, color, role, task }.
+// Real persistence -- until now this was pure frontend-only state that
+// reset back to a few hardcoded illustrative members on every reload.
 
 function fromApiMember(m) {
   return {
