@@ -22,6 +22,10 @@ running on your computer, in plain English.
 [`DEPLOY.md`](./DEPLOY.md) — same plain-English style, covers hosting the
 backend and frontend for real, once `SETUP.md` is done.
 
+**Before real strangers (not just you) sign up**, see
+[`EMAIL_SETUP.md`](./EMAIL_SETUP.md) — turning email confirmation back on
+and connecting a real email provider, so account emails actually arrive.
+
 ## Quick reference (once already set up)
 
 ```bash
