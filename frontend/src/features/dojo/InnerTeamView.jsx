@@ -1,17 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { COLORS } from "../../theme/tokens";
+import { EDIN_ICON } from "../../assets/edinIcon";
 
-// `members`/`setMembers` are lifted to GeniusProfileHub (see its own note)
-// so the same real team list shows up in both this flat view and the
-// Living Map's Inner Team layer -- one shared list, not two that can
-// drift apart. Still not persisted to the backend (see that note); this
-// only keeps the two views in sync with each other for now.
-export default function InnerTeamView({ members, setMembers }) {
+// `members` is lifted to GeniusProfileHub and backed by the real
+// /team-members API (see dojo/api.js and backend/app/team_tools.py) so the
+// same real team list shows up in both this flat view and the Living Map's
+// Inner Team layer -- one shared list, not two that can drift apart.
+export default function InnerTeamView({ members, onAddMember, onEditMember, onDeleteMember }) {
   const [selectedId, setSelectedId] = useState(members[0]?.id ?? null);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newMode, setNewMode] = useState("front");
   const [newRole, setNewRole] = useState("");
+  const [editingTask, setEditingTask] = useState(false);
+  const [taskDraft, setTaskDraft] = useState("");
+  const [crisisMessage, setCrisisMessage] = useState(null);
+
+  // members loads async from the backend (starts empty, then populates),
+  // and can also shrink out from under a stale selection on delete -- keep
+  // selectedId pointing at a real member whenever the list changes.
+  useEffect(() => {
+    if (members.length === 0) { setSelectedId(null); return; }
+    if (!members.find((m) => m.id === selectedId)) setSelectedId(members[0].id);
+  }, [members, selectedId]);
+
+  // Switching who's selected shouldn't leave a stale task-editing box open
+  // pointed at the previous member.
+  useEffect(() => { setEditingTask(false); }, [selectedId]);
 
   const cx = 210, cy = 210, r = 140;
   const w = 420, h = 420;
@@ -27,19 +42,29 @@ export default function InnerTeamView({ members, setMembers }) {
 
   const addMember = () => {
     if (!newName.trim()) return;
-    const id = `${newName.trim().toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-    const palette = [COLORS.coral, COLORS.gold, COLORS.teal, "#8e7ad1", "#7fb3a3"];
-    const color = palette[members.length % palette.length];
-    const member = { id, name: newName.trim(), mode: newMode, color, role: newRole.trim() || "Role still taking shape.", task: "No current task assigned yet." };
-    setMembers([...members, member]);
-    setSelectedId(id);
+    onAddMember({ name: newName.trim(), mode: newMode, role: newRole.trim() || undefined })
+      .then(({ member, crisisResponse }) => {
+        setSelectedId(member.id);
+        if (crisisResponse) setCrisisMessage(crisisResponse);
+      })
+      .catch((err) => console.error("Failed to add team member:", err));
     setNewName(""); setNewRole(""); setNewMode("front"); setShowAdd(false);
   };
 
   const deleteMember = (id) => {
-    const remaining = members.filter((m) => m.id !== id);
-    setMembers(remaining);
-    if (selectedId === id && remaining.length) setSelectedId(remaining[0].id);
+    onDeleteMember(id);
+  };
+
+  const startEditingTask = () => {
+    setTaskDraft(selected.task || "");
+    setEditingTask(true);
+  };
+
+  const saveTask = () => {
+    setEditingTask(false);
+    onEditMember(selected.id, { task: taskDraft.trim() || "No current task assigned yet." })
+      .then((crisisResponse) => { if (crisisResponse) setCrisisMessage(crisisResponse); })
+      .catch((err) => console.error("Failed to update team member task:", err));
   };
 
   return (
@@ -49,6 +74,21 @@ export default function InnerTeamView({ members, setMembers }) {
         can show up front-space as an active helper, or run quietly in the background organizing your own
         data as an interface for you. It's a relationship, and a creative one — add as many as show up for you.
       </div>
+
+      {crisisMessage && (
+        <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <img src={EDIN_ICON} alt="Edin" style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, objectFit: "cover", marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: COLORS.ink, lineHeight: 1.6 }}>{crisisMessage}</div>
+          </div>
+          <button
+            onClick={() => setCrisisMessage(null)}
+            style={{ alignSelf: "flex-end", fontSize: 10.5, padding: "4px 10px", borderRadius: 6, border: `1px solid ${COLORS.coral}`, background: "transparent", color: COLORS.coral, cursor: "pointer" }}
+          >
+            I've seen this
+          </button>
+        </div>
+      )}
 
       {isEmpty && (
         <div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>
@@ -105,8 +145,43 @@ export default function InnerTeamView({ members, setMembers }) {
           </div>
           <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 14, lineHeight: 1.5 }}>{selected.role}</div>
           <div style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 4 }}>CURRENTLY</div>
-            <div style={{ fontSize: 12.5, color: COLORS.ink }}>{selected.task}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <div style={{ fontSize: 10, color: COLORS.inkDim, letterSpacing: 0.5 }}>CURRENTLY</div>
+              {!editingTask && (
+                <button
+                  onClick={startEditingTask}
+                  style={{ fontSize: 10, padding: "2px 8px", borderRadius: 5, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, cursor: "pointer" }}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+            {editingTask ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <textarea
+                  value={taskDraft}
+                  onChange={(e) => setTaskDraft(e.target.value)}
+                  rows={2}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${COLORS.grid}`, background: COLORS.bg, color: COLORS.ink, fontSize: 12.5, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={saveTask}
+                    style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: COLORS.gold, color: "#1C2E24", fontSize: 11.5, cursor: "pointer" }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingTask(false)}
+                    style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${COLORS.grid}`, background: "transparent", color: COLORS.inkDim, fontSize: 11.5, cursor: "pointer" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 12.5, color: COLORS.ink }}>{selected.task}</div>
+            )}
           </div>
           <button
             onClick={() => deleteMember(selected.id)}
@@ -174,7 +249,7 @@ export default function InnerTeamView({ members, setMembers }) {
       )}
 
       <div style={{ fontSize: 11, color: COLORS.inkDim, fontStyle: "italic" }}>
-        Illustrative seed members shown to start — name, remove, and add your own. No fixed framework
+        Name, remove, and add your own real parts — nothing here is invented for you. No fixed framework
         (IFS or otherwise) required; this map is only as clinical as you want it to be.
       </div>
     </div>

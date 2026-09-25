@@ -6,7 +6,7 @@ import SymbolConstellation from "./SymbolConstellation";
 import BodySystemsMapView from "../library/BodySystemsMapView";
 import DreamArcView from "../library/DreamArcView";
 import InnerTeamView from "../dojo/InnerTeamView";
-import { INITIAL_TEAM_MEMBERS } from "../dojo/data/teamMembers";
+import { fetchTeamMembers, createTeamMember, updateTeamMember, deleteTeamMember } from "../dojo/api";
 import { fetchNeuronRecords, saveNeuronRecord, logNeuronPractice } from "./neuronRecordsApi";
 
 // Three.js pulls in a real chunk of weight -- lazy-loaded so it only
@@ -40,8 +40,38 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
   const [flatLens, setFlatLens] = useState("weave");
   // Lifted up (not owned by InnerTeamView) so the same real team list
   // shows up in both Flat's Inner Team tab and the Hologram's Inner Team
-  // region. Still not persisted to a backend -- a real gap, not fixed here.
-  const [teamMembers, setTeamMembers] = useState(INITIAL_TEAM_MEMBERS);
+  // region -- one shared list backed by the real /team-members API (see
+  // dojo/api.js and backend/app/team_tools.py), not two that can drift.
+  const [teamMembers, setTeamMembers] = useState([]);
+
+  useEffect(() => {
+    fetchTeamMembers().then(setTeamMembers).catch((err) => console.error("Failed to load team members:", err));
+  }, []);
+
+  // Each returns a promise resolving to crisisResponse (or null), same
+  // contract as saveRecord below, so InnerTeamView can show Track B's
+  // override message when it fires on a name/role's free text.
+  const addTeamMember = ({ name, mode, role }) => {
+    return createTeamMember({ name, mode, role }).then(({ member, crisisResponse }) => {
+      setTeamMembers((cur) => [...cur, member]);
+      return { member, crisisResponse };
+    });
+  };
+
+  const editTeamMember = (id, fields) => {
+    setTeamMembers((cur) => cur.map((m) => (m.id === id ? { ...m, ...fields } : m)));
+    return updateTeamMember(id, fields)
+      .then(({ member, crisisResponse }) => {
+        setTeamMembers((cur) => cur.map((m) => (m.id === id ? member : m)));
+        return crisisResponse;
+      })
+      .catch((err) => { console.error("Failed to update team member:", err); return null; });
+  };
+
+  const removeTeamMember = (id) => {
+    setTeamMembers((cur) => cur.filter((m) => m.id !== id));
+    deleteTeamMember(id).catch((err) => console.error("Failed to delete team member:", err));
+  };
 
   // Real per-node story/skill/practice-goal/vitals/dream data (see
   // neuronRecordsApi.js) -- lifted up here, not owned by BodySystemsMapView
@@ -146,7 +176,14 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
                   onActiveNodeChange={onActiveNodeChange}
                 />
               )}
-              {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
+              {flatLens === "team" && (
+                <InnerTeamView
+                  members={teamMembers}
+                  onAddMember={addTeamMember}
+                  onEditMember={editTeamMember}
+                  onDeleteMember={removeTeamMember}
+                />
+              )}
             </>
           ) : (
             // Its own boundary, not just the app-level one in main.jsx --

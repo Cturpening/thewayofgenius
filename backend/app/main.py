@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
-from app import constitution_tools, edin_tools, neuron_tools
+from app import constitution_tools, edin_tools, neuron_tools, team_tools
 from app.auth import get_current_coach_id, get_current_user_id
 from app.track_b import run_track_b
 from app.user_context import confirmed_tags, display_name
@@ -32,6 +32,7 @@ from app.models import (
     NeuronRecord,
     Profile,
     SymbolValidation,
+    TeamMember,
 )
 from app.schemas import (
     CalendarEventCreate,
@@ -70,6 +71,10 @@ from app.schemas import (
     NeuronRecordUpsert,
     SymbolValidationCreate,
     SymbolValidationOut,
+    TeamMemberCreate,
+    TeamMemberOut,
+    TeamMemberResponse,
+    TeamMemberUpdate,
     ToolCallOut,
 )
 
@@ -561,6 +566,48 @@ def delete_neuron_record(node_key: str, db: Session = Depends(get_db), user_id: 
     if record is None:
         raise HTTPException(status_code=404, detail="Neuron record not found")
     db.delete(record)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Team members (Inner Team -- Psyche Dojo / Genius Profile)
+#
+# Was pure frontend state until now (see database/schema.sql's own note)
+# -- real persistence, and the same write path whether a user adds/edits
+# a member by hand or Edin does it conversationally (see app/team_tools.py).
+# ---------------------------------------------------------------------------
+
+@app.get("/team-members", response_model=list[TeamMemberOut])
+def list_team_members(db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return db.query(TeamMember).filter(TeamMember.user_id == user_id).order_by(TeamMember.created_at.asc()).all()
+
+
+@app.post("/team-members", response_model=TeamMemberResponse, status_code=201)
+def create_team_member(payload: TeamMemberCreate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    member, crisis_response = team_tools.create_member(
+        db, user_id, name=payload.name, mode=payload.mode, color=payload.color, role=payload.role
+    )
+    return TeamMemberResponse(member=TeamMemberOut.model_validate(member), crisis_response=crisis_response)
+
+
+@app.patch("/team-members/{member_id}", response_model=TeamMemberResponse)
+def patch_team_member(
+    member_id: UUID, payload: TeamMemberUpdate, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)
+):
+    member = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.user_id == user_id).first()
+    if member is None:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    updates = payload.model_dump(exclude_unset=True)
+    member, crisis_response = team_tools.update_member(db, user_id, member=member, **updates)
+    return TeamMemberResponse(member=TeamMemberOut.model_validate(member), crisis_response=crisis_response)
+
+
+@app.delete("/team-members/{member_id}", status_code=204)
+def delete_team_member(member_id: UUID, db: Session = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    member = db.query(TeamMember).filter(TeamMember.id == member_id, TeamMember.user_id == user_id).first()
+    if member is None:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    db.delete(member)
     db.commit()
 
 

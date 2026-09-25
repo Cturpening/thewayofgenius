@@ -430,3 +430,49 @@ class NeuronRecordResponse(BaseModel):
     # free-text fields (see app/neuron_tools.py's upsert_neuron_record) --
     # same contract as every other crisis_response in this app.
     crisis_response: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Team members (Inner Team)
+# ---------------------------------------------------------------------------
+
+class TeamMemberCreate(BaseModel):
+    name: str
+    mode: Literal["front", "background"] = "front"
+    # Optional -- when omitted, app.team_tools.create_member's own
+    # palette rotation picks one server-side, the same real assignment
+    # Edin's create_team_member tool already relies on.
+    color: Optional[str] = None
+    role: Optional[str] = None
+
+
+class TeamMemberUpdate(BaseModel):
+    """Everything but color/mode is realistically editable after creation --
+    a part's name, role, or current task can all change as the
+    relationship with it does."""
+
+    name: Optional[str] = None
+    role: Optional[str] = None
+    task: Optional[str] = None
+
+
+class TeamMemberOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    name: str
+    mode: str
+    color: str
+    role: Optional[str] = None
+    task: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TeamMemberResponse(BaseModel):
+    member: TeamMemberOut
+    # Present only when Track B's crisis override fired on this save's
+    # role/task/name text -- same contract as every other crisis_response
+    # in this app.
+    crisis_response: Optional[str] = None

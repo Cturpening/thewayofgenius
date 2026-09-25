@@ -183,6 +183,25 @@ class NeuronRecord(Base):
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class TeamMember(Base):
+    """An Inner Team member (IFS-style "part") -- see database/schema.sql's
+    comment on this table for why this exists (it was pure frontend state
+    until now)."""
+
+    __tablename__ = "team_members"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    name = Column(Text, nullable=False)
+    mode = Column(Text, nullable=False, default="front")
+    color = Column(Text, nullable=False)
+    role = Column(Text, nullable=True)
+    task = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class FlaggedEvent(Base):
     """Safety-escalation log — see database/schema.sql and
     app/crisis_detection.py (Track B) for the full explanation. Written

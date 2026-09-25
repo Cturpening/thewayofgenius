@@ -43,4 +43,7 @@ def test_the_whole_toolbox_is_registered():
         "list_open_follow_throughs",
         "add_calendar_event",
         "set_constitution_intention",
+        "list_team_members",
+        "create_team_member",
+        "update_team_member",
     }

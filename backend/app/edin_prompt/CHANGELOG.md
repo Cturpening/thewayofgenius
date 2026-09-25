@@ -1,5 +1,20 @@
 # Edin System Prompt — Changelog
 
+## v11 — the Inner Team joins the toolbox
+
+Adds list_team_members, create_team_member, and update_team_member
+(app/team_tools.py): Edin can now list a user's real Inner Team members,
+create a new one, or update an existing member's role or current task
+conversationally -- the same real write path the Psyche Dojo's Inner Team
+tab now uses too (it was pure frontend-only state before this, resetting
+on every reload). Two small wording additions to the "Tool use in live
+chat" section: the new tools named alongside the rest, and
+list_team_members added to the "prefer listing before guessing" paragraph
+since member names are just as fuzzy-matchable as goal or follow-through
+names. Every actual rule (call only when asked, notice and offer, never
+claim success without calling) already covers these tools the same as
+every other one. Everything else is unchanged from v10.
+
 ## v10 — the Genius Constitution joins the toolbox
 
 Adds set_constitution_intention (app/constitution_tools.py): Edin can now

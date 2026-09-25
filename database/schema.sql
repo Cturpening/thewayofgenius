@@ -543,3 +543,42 @@ create policy "Users manage their own neuron records"
     on public.neuron_records for all
     using (auth.uid() = user_id)
     with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Team members (Inner Team -- Genius Profile / Psyche Dojo)
+--
+-- The IFS-style "parts" a user names for themselves -- "The Spark,"
+-- "The Organizer," whatever fits. Previously pure frontend state
+-- (frontend/src/features/dojo/data/teamMembers.js's INITIAL_TEAM_MEMBERS,
+-- lifted into App.jsx's own useState) -- real to look at, but reset back
+-- to the same three illustrative seed members on every page reload. This
+-- table makes it real: whatever a user actually adds, renames, or edits
+-- persists the same way every other feature in this app does.
+-- `color` is picked server-side at creation (a simple palette rotation,
+-- see app/team_tools.py's _next_color) when the caller doesn't supply one,
+-- and stored as-is from then on -- purely cosmetic, no reason for a
+-- client to ever need to compute it itself.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.team_members (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade,
+    name text not null,
+    mode text not null default 'front' check (mode in ('front', 'background')),
+    color text not null,
+    role text,
+    task text,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists team_members_user_id_idx
+    on public.team_members (user_id, created_at asc);
+
+alter table public.team_members enable row level security;
+
+drop policy if exists "Users manage their own team members" on public.team_members;
+create policy "Users manage their own team members"
+    on public.team_members for all
+    using (auth.uid() = user_id)
+    with check (auth.uid() = user_id);

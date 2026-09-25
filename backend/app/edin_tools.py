@@ -17,7 +17,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app import calendar_tools, constitution_tools, dream_journal_tools, follow_through_tools, goal_tools, neuron_tools
+from app import calendar_tools, constitution_tools, dream_journal_tools, follow_through_tools, goal_tools, neuron_tools, team_tools
 
 ALL_TOOL_DECLARATIONS = [
     *neuron_tools.NEURON_TOOL_DECLARATIONS,
@@ -26,6 +26,7 @@ ALL_TOOL_DECLARATIONS = [
     *follow_through_tools.TOOL_DECLARATIONS,
     *calendar_tools.TOOL_DECLARATIONS,
     *constitution_tools.TOOL_DECLARATIONS,
+    *team_tools.TOOL_DECLARATIONS,
 ]
 
 
@@ -41,6 +42,7 @@ def build_tool_executor(db: Session, user_id: UUID, node_key: str | None):
         follow_through_tools.make_executor(db, user_id),
         calendar_tools.make_executor(db, user_id),
         constitution_tools.make_executor(db, user_id),
+        team_tools.make_executor(db, user_id),
     ]
 
     def execute(name: str, args: dict) -> dict:
