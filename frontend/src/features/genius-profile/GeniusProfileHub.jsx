@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { COLORS } from "../../theme/tokens";
+import ErrorBoundary from "../../components/common/ErrorBoundary";
 import GeniusProfileMap from "./GeniusProfileMap";
 import SymbolConstellation from "./SymbolConstellation";
 import BodySystemsMapView from "../library/BodySystemsMapView";
@@ -148,16 +149,23 @@ export default function GeniusProfileHub({ setView, constitutionAnswers, dreamEn
               {flatLens === "team" && <InnerTeamView members={teamMembers} setMembers={setTeamMembers} />}
             </>
           ) : (
-            <Suspense fallback={<div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Loading the map…</div>}>
-              <LivingMap
-                dreamEntries={dreamEntries}
-                teamMembers={teamMembers}
-                neuronRecords={neuronRecords}
-                onSaveRecord={saveRecord}
-                onLogPractice={logPractice}
-                onActiveNodeChange={onActiveNodeChange}
-              />
-            </Suspense>
+            // Its own boundary, not just the app-level one in main.jsx --
+            // this is the newest, least-battle-tested surface (real
+            // Three.js/WebGL), so a crash here shouldn't take out chat,
+            // goals, the journal, everything else. Flat mode stays
+            // reachable via the toggle above even if Hologram is broken.
+            <ErrorBoundary label="The Hologram" compact>
+              <Suspense fallback={<div style={{ fontSize: 12.5, color: COLORS.inkDim, fontStyle: "italic" }}>Loading the map…</div>}>
+                <LivingMap
+                  dreamEntries={dreamEntries}
+                  teamMembers={teamMembers}
+                  neuronRecords={neuronRecords}
+                  onSaveRecord={saveRecord}
+                  onLogPractice={logPractice}
+                  onActiveNodeChange={onActiveNodeChange}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </div>
       )}
