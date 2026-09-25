@@ -18,13 +18,14 @@ import FutureTechView from "./features/planned/FutureTechView";
 import EdinChatView from "./features/chat/EdinChatView";
 import { EDIN_GREETINGS } from "./features/chat/data/greetings";
 import { useAuth } from "./features/auth/useAuth";
+import ResetPasswordView from "./features/auth/ResetPasswordView";
 import LandingView from "./features/landing/LandingView";
 import { supabase } from "./lib/supabaseClient";
 import CoachDashboardView from "./features/coach-dashboard/CoachDashboardView";
 import { checkIsCoach } from "./features/coach-dashboard/api";
 
 export default function App() {
-  const session = useAuth();
+  const { session, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const [mode, setMode] = useState("workload"); // workload | sleep
   const [view, setView] = useState("dojo"); // map | science | user | ...
   const [workloadKey, setWorkloadKey] = useState("rest");
@@ -61,6 +62,14 @@ export default function App() {
 
   if (session === undefined) {
     return <div style={{ padding: 40, color: COLORS.inkDim, fontSize: 13 }}>Loading...</div>;
+  }
+  // Checked before the logged-in/logged-out branch below: opening a real
+  // password-reset email link hands Supabase a temporary session, so
+  // `session` is truthy here too -- without this check first, that
+  // temporary session would just fall through into the normal app instead
+  // of the "set a new password" screen. See useAuth.js.
+  if (isPasswordRecovery) {
+    return <ResetPasswordView onDone={clearPasswordRecovery} />;
   }
   if (session === null) {
     return <LandingView />;
