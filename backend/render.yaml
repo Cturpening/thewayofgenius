@@ -19,6 +19,13 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Pinned explicitly -- without this, Render defaults to whatever its
+      # latest Python image is (3.14 as of writing), which is often too new
+      # for some dependencies to have a pre-built package for yet, causing
+      # an install failure. 3.12 is a stable, widely-supported version every
+      # package in requirements.txt already has a ready package for.
+      - key: PYTHON_VERSION
+        value: 3.12.7
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
