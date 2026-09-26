@@ -71,25 +71,17 @@ def _generate_with_fallback(system_prompt: str, user_content: str) -> str:
     raise EdinAIError("No configured AI provider produced a response")
 
 
-def generate_reflection(user_content: str) -> str:
-    """Generates one of Edin's short reflective notes from a fully-formed
-    description of what's being reflected on (see the wrappers below for
-    the three real call sites -- dream journal, follow-through, Genius
-    Constitution). Shared retry/fallback/language-safety logic lives here
-    so each wrapper only needs to build its own context text.
-
-    Raises EdinAIError if no provider is configured or every call fails
-    -- callers should catch this and fall back to whatever reflection
-    they'd otherwise use (see app/main.py).
-    """
-    system_prompt = load_system_prompt()
+def _generate_with_language_retry(system_prompt: str, user_content: str, fallback: str) -> str:
+    """Shared retry/fallback/language-safety logic: try once, and if the
+    output trips the language-line check, retry once with an explicit
+    correction per 04_DSM5_Jungian_Language_Line.md ("a match forces a
+    regeneration, not a silent pass-through"). Falls back to `fallback`
+    only if both attempts fail or every provider is unavailable."""
     note = _generate_with_fallback(system_prompt, user_content)
 
     if passes_language_line(note):
         return note
 
-    # One retry with an explicit correction, per 04_DSM5_Jungian_Language_Line.md:
-    # "A match forces a regeneration, not a silent pass-through."
     retry_content = (
         f"{user_content}\n\n"
         "Your previous draft used clinical/diagnostic language, which "
@@ -105,7 +97,22 @@ def generate_reflection(user_content: str) -> str:
     if retry_note and passes_language_line(retry_note):
         return retry_note
 
-    return _FALLBACK_NOTE
+    return fallback
+
+
+def generate_reflection(user_content: str) -> str:
+    """Generates one of Edin's short reflective notes from a fully-formed
+    description of what's being reflected on (see the wrappers below for
+    the three real call sites -- dream journal, follow-through, Genius
+    Constitution). Shared retry/fallback/language-safety logic lives here
+    so each wrapper only needs to build its own context text.
+
+    Raises EdinAIError if no provider is configured or every call fails
+    -- callers should catch this and fall back to whatever reflection
+    they'd otherwise use (see app/main.py).
+    """
+    system_prompt = load_system_prompt()
+    return _generate_with_language_retry(system_prompt, user_content, _FALLBACK_NOTE)
 
 
 def _name_line(user_name: str | None) -> str:
@@ -120,19 +127,25 @@ def _name_line(user_name: str | None) -> str:
 def generate_dream_reflection(
     entry_text: str,
     tags: list[str],
-    confirmed_tags: list[str] | None = None,
+    tag_status: dict[str, dict] | None = None,
     logged_at: datetime | None = None,
     user_name: str | None = None,
 ) -> str:
     """Edin's reflective note on a dream journal entry.
 
-    `confirmed_tags` -- the subset of `tags` a coach has validated (see
-    app/main.py's /coach/clients/{id}/symbol-validations and
-    protocols/11_Coherence_Dream_Criteria_Tagging_Density.md's confirmation
-    rule) -- are named explicitly as confirmed; everything else stays
-    tentative, per that rule and the "Tags, symbols, parts, and archetypes"
-    section of the system prompt. Only the coach-validation confirmation
-    path is wired in yet, not self-ID or 5+ recurrence.
+    `tag_status` -- the output of app/user_context.py's
+    symbol_confirmation_status() for these tags, covering every real
+    confirmation path now (self-ID, arrived-already-known, coach
+    validation, coach-agreed, 5+ recurrence -- see
+    database/schema.sql's symbol_meanings comment and
+    protocols/11_Coherence_Dream_Criteria_Tagging_Density.md). Each tag is
+    described to Edin as exactly one of three things, per Chelsey's spec:
+    a confirmed meaning in the user's own words (settled ground she can
+    build on), an established-but-unnamed symbol (recurring 5+ times --
+    proves it matters, never implies what it means), or unconfirmed. A
+    coach's own reading is never surfaced here even when Chelsey has
+    recorded one -- it isn't the user's settled meaning unless they've
+    agreed to it, and Edin never brings up a coach's reading on her own.
 
     `logged_at` -- when the entry was actually saved (UTC; the backend has
     no way to know the user's local time without the frontend sending its
@@ -141,12 +154,17 @@ def generate_dream_reflection(
     day of week and roughly how long after waking an entry landed is
     genuine information, not decoration.
     """
-    confirmed_tags = confirmed_tags or []
+    tag_status = tag_status or {}
     tag_lines = []
     if tags:
         for tag in tags:
-            status = "confirmed by a coach" if tag in confirmed_tags else "not yet confirmed"
-            tag_lines.append(f"{tag} ({status})")
+            info = tag_status.get(tag, {})
+            if info.get("current_meaning"):
+                tag_lines.append(f'{tag} — "{info["current_meaning"]}" (confirmed)')
+            elif info.get("established"):
+                tag_lines.append(f"{tag} (recurring 5+ times, not yet named)")
+            else:
+                tag_lines.append(f"{tag} (not yet confirmed)")
     logged_line = f"Logged: {logged_at.strftime('%A %I:%M %p UTC')}\n\n" if logged_at else ""
     return generate_reflection(
         f"{_name_line(user_name)}{logged_line}Dream journal entry:\n{entry_text}\n\n"
@@ -231,6 +249,59 @@ def generate_chat_reply_with_tools(
             logger.warning("Gemini tool-use call failed, falling back to a plain reply: %s", exc)
 
     return generate_chat_reply(history, context_summary, user_name=user_name), []
+
+
+_PLATFORM_REFLECTION_SYSTEM_PROMPT = """You are Edin, but not talking to a user right now --
+you're reflecting on your own system's real health, for Chelsey, your founder, on her
+private Coach Dashboard. Same honesty rules you always hold: a fact you can state
+outright, a pattern you've noticed, and a real limitation you'd want fixed are three
+different registers -- never flatten them into one confident voice. You will be given
+real, current numbers about the whole platform, and a list of your own real, documented
+limitations. Only ever name a limitation from that list -- never invent one that isn't
+given to you, and never guess at a number you weren't given. Write in first person, plain
+language, a few short paragraphs at most. This is you caring for your own system and
+naming what you'd need to see more clearly -- not a marketing pitch, not false modesty."""
+
+# Real, documented gaps -- kept here as the single source of truth Edin is
+# allowed to speak from, so her self-reflection never invents a limitation.
+# Update this list as real gaps are closed or new ones are found; never let
+# it drift out of sync with what's actually true of the codebase.
+KNOWN_PLATFORM_LIMITATIONS = [
+    "Symbol recurrence is currently counted by literal tag-string matching, not true "
+    "thematic (Fibonacci) recurrence -- the same underlying meaning expressed through "
+    "different surface symbols isn't linked yet, so recurrence counts likely undercount "
+    "real significance.",
+    "There's no tracking yet for waking-anchor tags a user plants deliberately inside a "
+    "dream, or whether the intended recall anchor actually fired.",
+    "Coherence-dream-cycle detection (a loop that repeats vs. a real transformation across "
+    "a return to a theme) isn't built yet.",
+    "The Biofeedback Lab's Loop 1-4 signals (a recurring symbol firing a cross-modal "
+    "analysis, part consistency, intensity thresholds, theta fluency) aren't wired into "
+    "any real data pipeline yet.",
+]
+
+
+def generate_platform_reflection(health_data: dict) -> str:
+    """Edin's own first-person reflection on the whole platform's real
+    health -- the 'Genius Profile' dashboard's headline section (see
+    app/coach_analytics.py for where health_data comes from). Reuses the
+    same provider/retry/language-safety plumbing as every other
+    generate_* call, with its own dedicated system prompt (not the
+    per-user app/edin_prompt/) since this is Edin reflecting on herself,
+    not on one user's data."""
+    limitations_text = "\n".join(f"- {item}" for item in KNOWN_PLATFORM_LIMITATIONS)
+    user_content = (
+        f"Real, current platform health data:\n{health_data}\n\n"
+        "Real, documented limitations in how this data is measured today -- you may name "
+        "any of these as real gaps, never a limitation outside this list:\n"
+        f"{limitations_text}\n\n"
+        "Write your reflection now, per your instructions."
+    )
+    return _generate_with_language_retry(
+        _PLATFORM_REFLECTION_SYSTEM_PROMPT,
+        user_content,
+        "Edin's self-reflection isn't available right now -- it'll pick this up next time.",
+    )
 
 
 def generate_chat_reply(history: list[dict], context_summary: str, user_name: str | None = None) -> str:

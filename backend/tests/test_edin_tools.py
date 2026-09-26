@@ -46,4 +46,6 @@ def test_the_whole_toolbox_is_registered():
         "list_team_members",
         "create_team_member",
         "update_team_member",
+        "confirm_symbol_meaning",
+        "get_symbol_meaning_history",
     }

@@ -303,12 +303,31 @@ class CoachNoteOut(BaseModel):
 
 class SymbolValidationCreate(BaseModel):
     tag: str
+    # Optional -- a coach's own reading of what the symbol means. When
+    # given, also writes a symbol_meanings row (source="coach") alongside
+    # the validation itself. Never becomes the user's "current" meaning on
+    # its own -- see database/schema.sql's comment on symbol_meanings.
+    meaning: Optional[str] = None
 
 
 class SymbolValidationOut(BaseModel):
     tag: str
     validated_by: UUID
     validated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SymbolMeaningOut(BaseModel):
+    id: UUID
+    client_id: UUID
+    tag: str
+    meaning: str
+    source: str
+    confirmed_by: UUID
+    created_at: datetime
+    is_current: bool
+    origin_sense: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

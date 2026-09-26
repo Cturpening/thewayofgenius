@@ -7,10 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
-from app import constitution_tools, edin_tools, neuron_tools, team_tools
+from app import coach_analytics, constitution_tools, edin_tools, neuron_tools, team_tools
 from app.auth import get_current_coach_id, get_current_user_id
 from app.track_b import run_track_b
-from app.user_context import confirmed_tags, display_name
+from app.user_context import display_name, record_symbol_meaning, symbol_confirmation_status
 from app.config import get_settings
 from app.database import engine, get_db
 from app.edin_ai import (
@@ -18,6 +18,7 @@ from app.edin_ai import (
     generate_chat_reply_with_tools,
     generate_dream_reflection,
     generate_follow_through_reflection,
+    generate_platform_reflection,
     is_configured as edin_ai_configured,
 )
 from app.models import (
@@ -31,6 +32,7 @@ from app.models import (
     MembershipPlan,
     NeuronRecord,
     Profile,
+    SymbolMeaning,
     SymbolValidation,
     TeamMember,
 )
@@ -69,6 +71,7 @@ from app.schemas import (
     NeuronRecordOut,
     NeuronRecordResponse,
     NeuronRecordUpsert,
+    SymbolMeaningOut,
     SymbolValidationCreate,
     SymbolValidationOut,
     TeamMemberCreate,
@@ -117,11 +120,6 @@ def _display_name(db: Session, user_id: UUID) -> str | None:
     (app/dream_journal_tools.py, etc.) can reuse it too. Kept here so
     every existing call site below doesn't need touching."""
     return display_name(db, user_id)
-
-
-def _confirmed_tags(db: Session, client_id: UUID, tags: list[str]) -> list[str]:
-    """Thin alias -- see _display_name above for why."""
-    return confirmed_tags(db, client_id, tags)
 
 
 def _supabase_project_ref() -> str | None:
@@ -204,11 +202,11 @@ def create_journal_entry(
         edin_note = None
     elif edin_ai_configured():
         try:
-            confirmed = _confirmed_tags(db, user_id, payload.tags)
+            tag_status = symbol_confirmation_status(db, user_id, payload.tags) if payload.tags else {}
             edin_note = generate_dream_reflection(
                 combined_text,
                 payload.tags,
-                confirmed_tags=confirmed,
+                tag_status=tag_status,
                 logged_at=datetime.now(timezone.utc),
                 user_name=_display_name(db, user_id),
             )
@@ -1046,7 +1044,16 @@ def coach_validate_symbol(
     """Implements the coach-validation path from
     protocols/11_Coherence_Dream_Criteria_Tagging_Density.md's symbol-
     confirmation rule. Upserts on (client_id, tag) -- re-validating just
-    refreshes who validated it and when, rather than erroring."""
+    refreshes who validated it and when, rather than erroring.
+
+    If `meaning` is given, also records the coach's actual reading via
+    record_symbol_meaning (source="coach") -- stored for the coach to see
+    on that client's own dashboard view, never surfaced to the user as
+    their own settled meaning unless they later agree to it (a separate
+    coach_agreed write, from the chat tool). This never overwrites or
+    deletes a user's own current meaning for the same tag -- both are
+    real, kept side by side (see database/schema.sql's comment on
+    symbol_meanings)."""
     _client_or_404(db, client_id)
     existing = (
         db.query(SymbolValidation)
@@ -1057,12 +1064,36 @@ def coach_validate_symbol(
         existing.validated_by = coach_id
         db.commit()
         db.refresh(existing)
-        return existing
-    validation = SymbolValidation(client_id=client_id, tag=payload.tag, validated_by=coach_id)
-    db.add(validation)
-    db.commit()
-    db.refresh(validation)
+        validation = existing
+    else:
+        validation = SymbolValidation(client_id=client_id, tag=payload.tag, validated_by=coach_id)
+        db.add(validation)
+        db.commit()
+        db.refresh(validation)
+
+    if payload.meaning:
+        record_symbol_meaning(
+            db, client_id, tag=payload.tag, meaning=payload.meaning, source="coach", confirmed_by=coach_id
+        )
     return validation
+
+
+@app.get("/coach/clients/{client_id}/symbol-meanings", response_model=list[SymbolMeaningOut])
+def coach_list_symbol_meanings(
+    client_id: UUID, db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)
+):
+    """Full Decoded_Meaning history for one client, every source included
+    -- lets the coach see divergence (a coach reading alongside the
+    client's own, possibly different, current meaning for the same tag)
+    side by side, per Chelsey's own discernment-work methodology. The
+    frontend groups this flat list by tag."""
+    _client_or_404(db, client_id)
+    return (
+        db.query(SymbolMeaning)
+        .filter(SymbolMeaning.client_id == client_id)
+        .order_by(SymbolMeaning.tag.asc(), SymbolMeaning.created_at.asc())
+        .all()
+    )
 
 
 @app.delete("/coach/clients/{client_id}/symbol-validations/{tag}", status_code=204)
@@ -1078,3 +1109,35 @@ def coach_unvalidate_symbol(
         raise HTTPException(status_code=404, detail="Symbol validation not found")
     db.delete(validation)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Genius Profile -- platform health analytics
+#
+# The first cross-user (unfiltered) queries in this codebase -- see
+# app/coach_analytics.py. Real numbers only; with few real accounts today
+# most of this will honestly show small numbers or zeros. No response_model
+# here deliberately -- the payload's nested shape is documented in
+# app/coach_analytics.py's get_platform_health docstring/return value
+# rather than duplicated into a matching Pydantic schema that could drift.
+# ---------------------------------------------------------------------------
+
+@app.get("/coach/analytics/health")
+def get_genius_profile_health(db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
+    return coach_analytics.get_platform_health(db)
+
+
+@app.post("/coach/analytics/reflection")
+def generate_genius_profile_reflection(db: Session = Depends(get_db), coach_id: UUID = Depends(get_current_coach_id)):
+    """Edin's own first-person reflection on the platform's real health --
+    generated on demand (a "Regenerate" button in the UI), never
+    automatically on every dashboard load, to respect the same AI-provider
+    quota awareness the rest of this project already treats carefully."""
+    if not edin_ai_configured():
+        raise HTTPException(status_code=503, detail="No AI provider is configured")
+    health_data = coach_analytics.get_platform_health(db)
+    try:
+        reflection = generate_platform_reflection(health_data)
+    except EdinAIError as exc:
+        raise HTTPException(status_code=503, detail=f"AI provider call failed: {exc}") from exc
+    return {"reflection": reflection, "generated_at": datetime.now(timezone.utc).isoformat()}

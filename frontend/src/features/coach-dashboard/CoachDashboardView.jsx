@@ -8,6 +8,7 @@ import {
   fetchClientNotes,
   addClientNote,
   fetchSymbolValidations,
+  fetchClientSymbolMeanings,
   validateSymbol,
   unvalidateSymbol,
   updateClientMembership,
@@ -15,6 +16,7 @@ import {
   createPlan,
   updatePlan,
 } from "./api";
+import GeniusProfileHealthView from "./GeniusProfileHealthView";
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -27,7 +29,7 @@ function formatPrice(priceCents, billingPeriod) {
 }
 
 export default function CoachDashboardView() {
-  const [view, setView] = useState("clients"); // clients | plans
+  const [view, setView] = useState("clients"); // clients | plans | genius-profile
   const [clients, setClients] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -61,7 +63,7 @@ export default function CoachDashboardView() {
       </div>
 
       <div style={{ display: "flex", gap: 8 }}>
-        {["clients", "plans"].map((v) => (
+        {["clients", "plans", "genius-profile"].map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -72,18 +74,20 @@ export default function CoachDashboardView() {
               color: view === v ? COLORS.violet : COLORS.inkDim,
             }}
           >
-            {v === "plans" ? "Membership Plans" : v}
+            {v === "plans" ? "Membership Plans" : v === "genius-profile" ? "Genius Profile" : v}
           </button>
         ))}
       </div>
 
-      {loadError && (
+      {loadError && view !== "genius-profile" && (
         <div style={{ background: `${COLORS.coral}18`, border: `1px solid ${COLORS.coral}`, borderRadius: 10, padding: "14px 16px", fontSize: 13, color: COLORS.ink }}>
           Couldn't load clients: {loadError}
         </div>
       )}
 
-      {view === "plans" ? (
+      {view === "genius-profile" ? (
+        <GeniusProfileHealthView />
+      ) : view === "plans" ? (
         <PlansManager plans={plans} loadError={plansError} onPlanCreate={onPlanCreate} onPlanUpdate={onPlanUpdate} />
       ) : (
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -316,11 +320,32 @@ function MembershipPanel({ client, plans, onClientUpdate }) {
   );
 }
 
+// A tag is "worth a look" when a coach reading exists AND the client's
+// own current meaning (self/arrived_known/coach_agreed) is different text
+// -- real coaching signal, never an error, never resolved automatically.
+// See database/schema.sql's comment on symbol_meanings.
+function findDivergentSymbols(meanings) {
+  const byTag = {};
+  for (const m of meanings) {
+    (byTag[m.tag] ||= []).push(m);
+  }
+  const divergent = [];
+  for (const [tag, rows] of Object.entries(byTag)) {
+    const coachReading = rows.find((r) => r.source === "coach");
+    const currentOwn = rows.find((r) => r.isCurrent && r.source !== "coach");
+    if (coachReading && currentOwn && coachReading.meaning !== currentOwn.meaning) {
+      divergent.push({ tag, coachReading, currentOwn });
+    }
+  }
+  return divergent;
+}
+
 function ClientDetail({ client, plans, onClientUpdate }) {
   const [dreamEntries, setDreamEntries] = useState([]);
   const [constitutionResults, setConstitutionResults] = useState([]);
   const [notes, setNotes] = useState([]);
   const [validatedTags, setValidatedTags] = useState([]);
+  const [symbolMeanings, setSymbolMeanings] = useState([]);
   const [newNote, setNewNote] = useState("");
 
   useEffect(() => {
@@ -328,7 +353,10 @@ function ClientDetail({ client, plans, onClientUpdate }) {
     fetchClientConstitutionResults(client.id).then(setConstitutionResults).catch((err) => console.error("Failed to load constitution results:", err));
     fetchClientNotes(client.id).then(setNotes).catch((err) => console.error("Failed to load coach notes:", err));
     fetchSymbolValidations(client.id).then(setValidatedTags).catch((err) => console.error("Failed to load symbol validations:", err));
+    fetchClientSymbolMeanings(client.id).then(setSymbolMeanings).catch((err) => console.error("Failed to load symbol meanings:", err));
   }, [client.id]);
+
+  const divergentSymbols = findDivergentSymbols(symbolMeanings);
 
   const addNote = () => {
     if (!newNote.trim()) return;
@@ -351,6 +379,26 @@ function ClientDetail({ client, plans, onClientUpdate }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <MembershipPanel client={client} plans={plans} onClientUpdate={onClientUpdate} />
+
+      {divergentSymbols.length > 0 && (
+        <div style={{ background: `${COLORS.gold}14`, border: `1px solid ${COLORS.gold}55`, borderRadius: 14, padding: "18px 20px" }}>
+          <div style={{ fontSize: 11, color: COLORS.gold, letterSpacing: 0.5, marginBottom: 4 }}>WORTH A LOOK -- DIVERGENT READINGS</div>
+          <div style={{ fontSize: 10.5, color: COLORS.inkDim, marginBottom: 12, lineHeight: 1.5 }}>
+            A symbol where your own reading and this client's current meaning differ. Neither is
+            overwritten -- both are real layers. This is where the discernment work happens with them,
+            never something Edin brings up on her own.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {divergentSymbols.map(({ tag, coachReading, currentOwn }) => (
+              <div key={tag} style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "10px 14px" }}>
+                <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 6 }}>#{tag}</div>
+                <div style={{ fontSize: 11.5, color: COLORS.inkDim }}>Your reading: <span style={{ color: COLORS.ink }}>"{coachReading.meaning}"</span></div>
+                <div style={{ fontSize: 11.5, color: COLORS.inkDim, marginTop: 3 }}>Their current meaning: <span style={{ color: COLORS.ink }}>"{currentOwn.meaning}"</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ background: COLORS.bgPanel, borderRadius: 14, padding: "18px 20px" }}>
         <div style={{ fontSize: 11, color: COLORS.inkDim, letterSpacing: 0.5, marginBottom: 10 }}>

@@ -146,6 +146,46 @@ class SymbolValidation(Base):
     validated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
 
+class SymbolMeaning(Base):
+    """Decoded_Meaning history -- append-only, never updated in place. See
+    database/schema.sql's comment on this table for the full write-rule
+    explanation (source values, why a coach reading and a user's own
+    meaning can coexist, etc.)."""
+
+    __tablename__ = "symbol_meanings"
+    __table_args__ = {"schema": "public"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), nullable=False)
+    tag = Column(Text, nullable=False)
+    meaning = Column(Text, nullable=False)
+    source = Column(Text, nullable=False)  # self | arrived_known | coach | coach_agreed
+    confirmed_by = Column(UUID(as_uuid=True), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    is_current = Column(Boolean, nullable=False, default=True)
+    superseded_by = Column(UUID(as_uuid=True), nullable=True)
+    change_kind = Column(Text, nullable=True)  # deepened | shifted | corrected
+    context_entry_id = Column(UUID(as_uuid=True), nullable=True)
+    origin_sense = Column(Text, nullable=True)  # arrived | worked_out | unsure
+    edin_note = Column(Text, nullable=True)
+
+
+class SymbolStatus(Base):
+    """Lifecycle state for a (user, tag) symbol -- resolved/high-significance
+    flags, separate from the meaning history above. One row per symbol
+    that has reached a notable state; no row just means nothing notable
+    has happened yet, not "unconfirmed" (see SymbolMeaning for that)."""
+
+    __tablename__ = "symbol_status"
+    __table_args__ = {"schema": "public"}
+
+    client_id = Column(UUID(as_uuid=True), primary_key=True)
+    tag = Column(Text, primary_key=True)
+    resolved = Column(Boolean, nullable=False, default=False)
+    resolved_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    high_significance = Column(Boolean, nullable=False, default=False)
+
+
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     __table_args__ = {"schema": "public"}

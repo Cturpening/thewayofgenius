@@ -4,6 +4,11 @@ into create_entry() below, so a journal entry Edin writes on the user's
 behalf gets the exact same Track B crisis check and the exact same real
 Gemini/Claude reflection as one typed directly into the journal UI. No
 shortcut version for the conversational path.
+
+Also owns the two chat-facing tools for Chelsey's real symbol-confirmation
+system (confirm_symbol_meaning, get_symbol_meaning_history) -- see
+app/user_context.py for the actual confirmation logic and
+database/schema.sql's comment on symbol_meanings for the full spec.
 """
 
 from uuid import UUID
@@ -11,9 +16,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.edin_ai import EdinAIError, generate_dream_reflection, is_configured as edin_ai_configured
-from app.models import DreamJournalEntry
+from app.models import DreamJournalEntry, SymbolMeaning
 from app.track_b import run_track_b
-from app.user_context import confirmed_tags, display_name
+from app.user_context import display_name, record_symbol_meaning, symbol_confirmation_status
 
 
 def create_entry(
@@ -37,7 +42,7 @@ def create_entry(
             edin_note = generate_dream_reflection(
                 combined_text,
                 tags,
-                confirmed_tags=confirmed_tags(db, user_id, tags),
+                tag_status=symbol_confirmation_status(db, user_id, tags) if tags else {},
                 user_name=display_name(db, user_id),
             )
         except EdinAIError:
@@ -75,6 +80,47 @@ TOOL_DECLARATIONS = [
         ),
         "parameters": {"type": "object", "properties": {}},
     },
+    {
+        "name": "confirm_symbol_meaning",
+        "description": (
+            "Log what a recurring dream symbol actually means to the user, in their own words. Only call "
+            "this after the user has named a meaning themselves and explicitly agreed you should log it -- "
+            "never after a first casual guess, and never your own interpretation. Give them real room to "
+            "reflect before offering to log it; if a quick label looks like it might be shutting down "
+            "something harder rather than genuine recognition, name that gently first instead of logging "
+            "it right away."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "tag": {"type": "string", "description": "The exact symbol/tag this meaning is for."},
+                "meaning": {"type": "string", "description": "The meaning, in the user's own words -- never your interpretation."},
+                "source": {
+                    "type": "string",
+                    "enum": ["self", "arrived_known"],
+                    "description": (
+                        "'arrived_known' only if this is the symbol's first appearance AND the user said the "
+                        "meaning came WITH it (e.g. 'I just knew what it meant', 'I recognized it immediately'"
+                        "with no reasoning). 'self' for every other real self-identification."
+                    ),
+                },
+            },
+            "required": ["tag", "meaning", "source"],
+        },
+    },
+    {
+        "name": "get_symbol_meaning_history",
+        "description": (
+            "See how a symbol's meaning has been described over time -- use before asking the user to "
+            "re-explain something they may have already named, or to check whether an earlier meaning "
+            "still holds ('three months ago you described this as ___ -- does that still hold?')."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"tag": {"type": "string", "description": "The exact symbol/tag to look up."}},
+            "required": ["tag"],
+        },
+    },
 ]
 
 
@@ -101,6 +147,34 @@ def make_executor(db: Session, user_id: UUID):
                     {"title": e.title, "date": e.created_at.isoformat(), "tags": e.tags}
                     for e in entries
                 ]
+            }
+
+        if name == "confirm_symbol_meaning":
+            source = args.get("source", "self")
+            if source not in ("self", "arrived_known"):
+                return {"error": "source must be 'self' or 'arrived_known' from this tool -- coach readings are recorded from the Coach Dashboard, not chat."}
+            try:
+                record = record_symbol_meaning(
+                    db, user_id, tag=args["tag"], meaning=args["meaning"], source=source, confirmed_by=user_id
+                )
+            except ValueError as exc:
+                return {"error": str(exc)}
+            return {"saved": True, "tag": record.tag, "meaning": record.meaning, "source": record.source}
+
+        if name == "get_symbol_meaning_history":
+            tag = args["tag"]
+            rows = (
+                db.query(SymbolMeaning)
+                .filter(SymbolMeaning.client_id == user_id, SymbolMeaning.tag == tag)
+                .order_by(SymbolMeaning.created_at.asc())
+                .all()
+            )
+            return {
+                "tag": tag,
+                "history": [
+                    {"meaning": r.meaning, "source": r.source, "is_current": r.is_current, "logged_at": r.created_at.isoformat()}
+                    for r in rows
+                ],
             }
 
         return None  # not this domain's tool -- let the aggregator try the next one

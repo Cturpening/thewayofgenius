@@ -153,13 +153,52 @@ export async function fetchSymbolValidations(clientId) {
   return rows.map((r) => r.tag);
 }
 
-export async function validateSymbol(clientId, tag) {
+// `meaning` is optional -- when given, also records the coach's own
+// reading (see backend/app/main.py's coach_validate_symbol). Never
+// overwrites or appears as the client's own settled meaning.
+export async function validateSymbol(clientId, tag, meaning) {
   await apiRequest(`/coach/clients/${clientId}/symbol-validations`, {
     method: "POST",
-    body: JSON.stringify({ tag }),
+    body: JSON.stringify({ tag, meaning: meaning || undefined }),
   });
 }
 
 export async function unvalidateSymbol(clientId, tag) {
   await apiRequest(`/coach/clients/${clientId}/symbol-validations/${encodeURIComponent(tag)}`, { method: "DELETE" });
+}
+
+// --- Genius Profile (Decoded_Meaning history + platform health) --------
+
+function fromApiMeaning(m) {
+  return {
+    id: m.id,
+    tag: m.tag,
+    meaning: m.meaning,
+    source: m.source,
+    isCurrent: m.is_current,
+    createdAt: m.created_at,
+  };
+}
+
+// Full meaning history for one client, every source included -- lets the
+// coach see divergence (their own reading alongside the client's own,
+// possibly different, current meaning for the same tag) side by side.
+export async function fetchClientSymbolMeanings(clientId) {
+  const rows = await apiRequest(`/coach/clients/${clientId}/symbol-meanings`, { method: "GET" });
+  return rows.map(fromApiMeaning);
+}
+
+// Real, cross-user platform health -- see backend/app/coach_analytics.py
+// for exactly what each section means. Every number is real; small
+// numbers or zeros with few real accounts is correct, not a bug.
+export async function fetchPlatformHealth() {
+  return apiRequest(`/coach/analytics/health`, { method: "GET" });
+}
+
+// Generates Edin's own first-person reflection on the platform's health --
+// on demand only (a "Regenerate" button), never automatically, to respect
+// the same AI-provider quota awareness used everywhere else in this app.
+export async function generatePlatformReflection() {
+  const result = await apiRequest(`/coach/analytics/reflection`, { method: "POST" });
+  return { reflection: result.reflection, generatedAt: result.generated_at };
 }

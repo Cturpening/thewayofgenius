@@ -405,6 +405,88 @@ create policy "Coaches manage the validations they made"
     with check (auth.uid() = validated_by);
 
 -- ---------------------------------------------------------------------------
+-- Symbol meanings (Decoded_Meaning -- Chelsey's symbol confirmation spec)
+--
+-- Append-only history of what a symbol actually means, in the user's own
+-- words. symbol_validations above only ever recorded who validated a tag
+-- and when -- there was nowhere to store the meaning itself, and no way
+-- to represent a meaning changing over time without destroying the old
+-- one. This table is that: one row per meaning-naming event, never
+-- updated in place. The "current" meaning for a (client_id, tag) is
+-- whichever row has is_current = true (enforced by the partial unique
+-- index below, so there is always at most one).
+--
+-- source values:
+--   self          -- the user named it themselves
+--   arrived_known -- a special, high-signal case of self: the meaning
+--                    arrived WITH the symbol on first appearance (see
+--                    protocols/11's "arrived already known" tagging
+--                    behavior), not decoded after the fact
+--   coach         -- a coach's own reading/offer -- never treated as the
+--                    user's settled meaning on its own; stored so the
+--                    coach can see it, but is_current stays false unless
+--                    there is no user meaning yet
+--   coach_agreed  -- the user explicitly agreed with a coach's reading
+--
+-- Both a coach's reading AND the user's own (possibly different) meaning
+-- for the same tag can coexist here -- that divergence is real, useful
+-- coaching data (see the Coach Dashboard's per-client symbol view), never
+-- something to silently overwrite or resolve automatically.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.symbol_meanings (
+    id uuid primary key default gen_random_uuid(),
+    client_id uuid not null references auth.users (id) on delete cascade,
+    tag text not null,
+    meaning text not null,
+    source text not null check (source in ('self', 'arrived_known', 'coach', 'coach_agreed')),
+    confirmed_by uuid not null references auth.users (id) on delete cascade,
+    created_at timestamptz not null default now(),
+    is_current boolean not null default true,
+    superseded_by uuid references public.symbol_meanings (id),
+    change_kind text check (change_kind in ('deepened', 'shifted', 'corrected')),
+    context_entry_id uuid references public.dream_journal_entries (id) on delete set null,
+    origin_sense text check (origin_sense in ('arrived', 'worked_out', 'unsure')),
+    edin_note text
+);
+
+create unique index if not exists symbol_meanings_current_idx
+    on public.symbol_meanings (client_id, tag) where is_current;
+create index if not exists symbol_meanings_history_idx
+    on public.symbol_meanings (client_id, tag, created_at desc);
+
+alter table public.symbol_meanings enable row level security;
+
+drop policy if exists "Users manage their own symbol meanings" on public.symbol_meanings;
+create policy "Users manage their own symbol meanings"
+    on public.symbol_meanings for all
+    using (auth.uid() = client_id)
+    with check (auth.uid() = client_id);
+
+-- ---------------------------------------------------------------------------
+-- Symbol status -- lifecycle state per (user, tag), separate from meaning
+-- history above. One row per symbol that has reached some notable state;
+-- absence of a row just means "nothing notable yet," not "unconfirmed."
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.symbol_status (
+    client_id uuid not null references auth.users (id) on delete cascade,
+    tag text not null,
+    resolved boolean not null default false,
+    resolved_at timestamptz,
+    high_significance boolean not null default false,
+    primary key (client_id, tag)
+);
+
+alter table public.symbol_status enable row level security;
+
+drop policy if exists "Users manage their own symbol status" on public.symbol_status;
+create policy "Users manage their own symbol status"
+    on public.symbol_status for all
+    using (auth.uid() = client_id)
+    with check (auth.uid() = client_id);
+
+-- ---------------------------------------------------------------------------
 -- Chat messages
 --
 -- Real, persisted conversation history with Edin -- replaces the
