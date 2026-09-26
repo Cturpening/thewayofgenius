@@ -97,11 +97,24 @@ TOOL_DECLARATIONS = [
                 "meaning": {"type": "string", "description": "The meaning, in the user's own words -- never your interpretation."},
                 "source": {
                     "type": "string",
-                    "enum": ["self", "arrived_known"],
+                    "enum": ["self", "arrived_known", "coach_agreed"],
                     "description": (
                         "'arrived_known' only if this is the symbol's first appearance AND the user said the "
-                        "meaning came WITH it (e.g. 'I just knew what it meant', 'I recognized it immediately'"
-                        "with no reasoning). 'self' for every other real self-identification."
+                        "meaning came WITH it (e.g. 'I just knew what it meant', 'I recognized it immediately' "
+                        "with no reasoning). 'coach_agreed' only if the user is explicitly agreeing to a "
+                        "reading their coach already gave them for this exact tag -- never for a bare "
+                        "self-identification, and it will fail if the coach never recorded one. 'self' for "
+                        "every other real self-identification."
+                    ),
+                },
+                "origin_sense": {
+                    "type": "string",
+                    "enum": ["arrived", "worked_out", "unsure"],
+                    "description": (
+                        "How the meaning showed up for the user, in THEIR own words -- only set this from an "
+                        "explicit answer to a discernment question ('did that arrive with the symbol, or did "
+                        "you work it out?'). Never guess or default this; omit it entirely if you didn't ask "
+                        "or they didn't say."
                     ),
                 },
             },
@@ -151,11 +164,32 @@ def make_executor(db: Session, user_id: UUID):
 
         if name == "confirm_symbol_meaning":
             source = args.get("source", "self")
-            if source not in ("self", "arrived_known"):
-                return {"error": "source must be 'self' or 'arrived_known' from this tool -- coach readings are recorded from the Coach Dashboard, not chat."}
+            if source not in ("self", "arrived_known", "coach_agreed"):
+                return {"error": "source must be 'self', 'arrived_known', or 'coach_agreed' from this tool -- a plain coach reading is recorded from the Coach Dashboard, not chat."}
+            edin_note = None
+            if source == "coach_agreed":
+                # coach_agreed only ever promotes an EXISTING coach reading --
+                # it can never be the first thing recorded for a tag, so a
+                # bare self-identification can't slip in under this label.
+                coach_reading = (
+                    db.query(SymbolMeaning)
+                    .filter(SymbolMeaning.client_id == user_id, SymbolMeaning.tag == args["tag"], SymbolMeaning.source == "coach")
+                    .order_by(SymbolMeaning.created_at.desc())
+                    .first()
+                )
+                if coach_reading is None:
+                    return {"error": "No coach reading exists for this tag yet, so there's nothing to agree to -- use 'self' or 'arrived_known' instead."}
+                edin_note = f"User agreed with coach reading (id={coach_reading.id}): {coach_reading.meaning!r}"
             try:
                 record = record_symbol_meaning(
-                    db, user_id, tag=args["tag"], meaning=args["meaning"], source=source, confirmed_by=user_id
+                    db,
+                    user_id,
+                    tag=args["tag"],
+                    meaning=args["meaning"],
+                    source=source,
+                    confirmed_by=user_id,
+                    origin_sense=args.get("origin_sense"),
+                    edin_note=edin_note,
                 )
             except ValueError as exc:
                 return {"error": str(exc)}

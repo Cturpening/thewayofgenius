@@ -332,6 +332,24 @@ class SymbolMeaningOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SymbolStatusUpdate(BaseModel):
+    # The only field a coach can set by hand today. There's no ritual or
+    # workflow gating this yet (that's the Phoenix Option room, not built) --
+    # it's a plain toggle a coach flips when they and the client agree a
+    # symbol's work is done, same trust level as every other coach-only write.
+    resolved: bool
+
+
+class SymbolStatusOut(BaseModel):
+    client_id: UUID
+    tag: str
+    resolved: bool
+    resolved_at: Optional[datetime] = None
+    high_significance: bool
+
+    model_config = {"from_attributes": True}
+
+
 # ---------------------------------------------------------------------------
 # Chat (Edin — Available Anywhere)
 #

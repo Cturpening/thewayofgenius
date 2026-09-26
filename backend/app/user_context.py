@@ -77,6 +77,7 @@ def record_symbol_meaning(
     context_entry_id: UUID | None = None,
     change_kind: str | None = None,
     origin_sense: str | None = None,
+    edin_note: str | None = None,
 ) -> SymbolMeaning:
     """The one write path for Decoded_Meaning -- append-only, never an
     update-in-place. A new user-owned meaning (self/arrived_known/
@@ -116,6 +117,7 @@ def record_symbol_meaning(
         change_kind=change_kind,
         context_entry_id=context_entry_id,
         origin_sense=origin_sense,
+        edin_note=edin_note,
     )
     db.add(new_row)
     db.flush()  # assign new_row.id without committing, so superseded_by can reference it
@@ -207,6 +209,15 @@ def symbol_confirmation_status(db: Session, client_id: UUID, tags: list[str]) ->
     for tag in unique_tags:
         rows = meanings_by_tag.get(tag, [])
         current = next((r for r in rows if r.is_current), None)
+        # Divergence can only ever be detected against a source="coach"
+        # symbol_meanings row -- legacy symbol_validations rows have no
+        # meaning text at all, so there's nothing to compare there. This is
+        # also exact-string comparison, not semantic: two readings that say
+        # the same thing in different words will still show as "divergent."
+        # That's an acceptable v1 simplification because divergence is only
+        # ever a "worth a look" flag for the coach, never a hard gate on
+        # anything -- a false positive here just means the coach glances at
+        # two rows that already agree.
         has_coach_reading = any(r.source == "coach" for r in rows)
         established = occurrence_counts.get(tag, 0) >= RECURRENCE_THRESHOLD
 

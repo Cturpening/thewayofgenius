@@ -188,6 +188,17 @@ export async function fetchClientSymbolMeanings(clientId) {
   return rows.map(fromApiMeaning);
 }
 
+// Sets or clears symbol_status.resolved for one client+tag -- the only
+// write path for "resolved" today. Plain toggle, no ritual/workflow gate
+// yet (that's the Phoenix Option room, not built) -- see backend/app/main.py's
+// coach_update_symbol_status.
+export async function updateSymbolResolved(clientId, tag, resolved) {
+  await apiRequest(`/coach/clients/${clientId}/symbol-status/${encodeURIComponent(tag)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ resolved }),
+  });
+}
+
 // Real, cross-user platform health -- see backend/app/coach_analytics.py
 // for exactly what each section means. Every number is real; small
 // numbers or zeros with few real accounts is correct, not a bug.

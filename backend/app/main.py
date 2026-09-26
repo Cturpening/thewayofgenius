@@ -33,6 +33,7 @@ from app.models import (
     NeuronRecord,
     Profile,
     SymbolMeaning,
+    SymbolStatus,
     SymbolValidation,
     TeamMember,
 )
@@ -72,6 +73,8 @@ from app.schemas import (
     NeuronRecordResponse,
     NeuronRecordUpsert,
     SymbolMeaningOut,
+    SymbolStatusOut,
+    SymbolStatusUpdate,
     SymbolValidationCreate,
     SymbolValidationOut,
     TeamMemberCreate,
@@ -1094,6 +1097,31 @@ def coach_list_symbol_meanings(
         .order_by(SymbolMeaning.tag.asc(), SymbolMeaning.created_at.asc())
         .all()
     )
+
+
+@app.patch("/coach/clients/{client_id}/symbol-status/{tag}", response_model=SymbolStatusOut)
+def coach_update_symbol_status(
+    client_id: UUID,
+    tag: str,
+    payload: SymbolStatusUpdate,
+    db: Session = Depends(get_db),
+    coach_id: UUID = Depends(get_current_coach_id),
+):
+    """The only write path for symbol_status.resolved -- there's no
+    dedicated "release" ritual yet (that's the Phoenix Option room,
+    explicitly out of scope for this pass), so this is a plain toggle a
+    coach sets by hand. Upserts so a tag with no prior symbol_status row
+    (e.g. one that's never hit high_significance) can still be resolved."""
+    _client_or_404(db, client_id)
+    status = db.query(SymbolStatus).filter(SymbolStatus.client_id == client_id, SymbolStatus.tag == tag).first()
+    if status is None:
+        status = SymbolStatus(client_id=client_id, tag=tag)
+        db.add(status)
+    status.resolved = payload.resolved
+    status.resolved_at = datetime.now(timezone.utc) if payload.resolved else None
+    db.commit()
+    db.refresh(status)
+    return status
 
 
 @app.delete("/coach/clients/{client_id}/symbol-validations/{tag}", status_code=204)

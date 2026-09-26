@@ -1,20 +1,30 @@
 # Edin System Prompt — Changelog
 
-## v12 — real symbol-meaning confirmation (self-ID, arrived-known, recurrence)
+## v12 — real symbol-meaning confirmation (self-ID, arrived-known, coach-agreed, recurrence)
 
 Adds confirm_symbol_meaning and get_symbol_meaning_history
 (app/dream_journal_tools.py, app/user_context.py): this closes a real gap
-where only 1 of Chelsey's 3 documented symbol-confirmation paths (coach
-validation) was ever wired up -- self-identification and 5+ recurrence
-existed only in the protocol docs, never in code. Edin can now log what a
-symbol actually means in the user's own words (self-ID, or the special
-"arrived already known" case), and look up how a meaning has evolved over
-time. New guardrail paragraph: confirming a meaning is never closure (it
+where only 1 of Chelsey's documented symbol-confirmation paths (coach
+validation) was ever wired up -- self-identification, arrived-already-known,
+coach-agreed, and 5+ recurrence existed only in the protocol docs, never in
+code. Edin can now log what a symbol actually means in the user's own words
+(self-ID, the special "arrived already known" case, or explicit agreement
+with an existing coach reading -- confirm_symbol_meaning rejects
+coach_agreed outright if no coach reading exists yet for that tag), and
+look up how a meaning has evolved over time. New guardrail paragraph: confirming a meaning is never closure (it
 can deepen or change later, always as a new entry, never an overwrite),
 Edin never writes a meaning on the user's behalf, and a quick self-label
 that looks self-protective gets named gently rather than logged
 uncritically -- though it's still logged if the user wants it, since that
-call belongs to them, not to Edin. Dream journal reflections now describe
+call belongs to them, not to Edin. Where it's natural, Edin may ask a real
+discernment question (did it arrive with the symbol or get worked out;
+what happens in the body when it's said; does it open something up or
+close it down; is this the whole of it or one layer) rather than logging
+the first label offered -- `origin_sense` is only ever filled from a
+direct answer to a question like the first one, never inferred. Edin
+never brings up a coach's own reading of a symbol on her own initiative;
+a coach's reading and the user's settled meaning can genuinely differ and
+both stay on record without her reconciling or flagging it. Dream journal reflections now describe
 each tag as exactly one of three things: a confirmed meaning in the
 user's own words, an established-but-unnamed recurring symbol, or
 unconfirmed -- a coach's own reading is never surfaced here, matching the

@@ -260,7 +260,14 @@ real, current numbers about the whole platform, and a list of your own real, doc
 limitations. Only ever name a limitation from that list -- never invent one that isn't
 given to you, and never guess at a number you weren't given. Write in first person, plain
 language, a few short paragraphs at most. This is you caring for your own system and
-naming what you'd need to see more clearly -- not a marketing pitch, not false modesty."""
+naming what you'd need to see more clearly -- not a marketing pitch, not false modesty.
+
+With few real accounts today, most of these numbers will be small -- say that plainly
+("only 2 users so far, so this isn't a trend yet") rather than dressing a small count up
+as a percentage or a rate. Never convert a count under roughly 10 into a percentage, and
+never describe a small number's direction (up, down, growing) as if it were a real trend
+-- there isn't enough data yet for that claim to be honest. A true zero is worth naming
+outright, not softened into "not yet significant." """
 
 # Real, documented gaps -- kept here as the single source of truth Edin is
 # allowed to speak from, so her self-reflection never invents a limitation.
@@ -288,7 +295,17 @@ def generate_platform_reflection(health_data: dict) -> str:
     same provider/retry/language-safety plumbing as every other
     generate_* call, with its own dedicated system prompt (not the
     per-user app/edin_prompt/) since this is Edin reflecting on herself,
-    not on one user's data."""
+    not on one user's data.
+
+    Coach-only, never shown to end users -- gated by the
+    /coach/analytics/reflection route's get_current_coach_id dependency
+    and only rendered inside the Coach Dashboard's Genius Profile tab.
+
+    `health_data` is a plain dict of counts and rates (see
+    app/coach_analytics.py's get_platform_health) -- by construction it
+    never contains a user's dream text, a symbol's meaning, or anything
+    identifying, so there's nothing here that could leak one user's
+    private content into this cross-account reflection."""
     limitations_text = "\n".join(f"- {item}" for item in KNOWN_PLATFORM_LIMITATIONS)
     user_content = (
         f"Real, current platform health data:\n{health_data}\n\n"

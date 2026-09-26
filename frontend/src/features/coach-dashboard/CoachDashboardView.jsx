@@ -11,6 +11,7 @@ import {
   fetchClientSymbolMeanings,
   validateSymbol,
   unvalidateSymbol,
+  updateSymbolResolved,
   updateClientMembership,
   fetchPlans,
   createPlan,
@@ -324,6 +325,12 @@ function MembershipPanel({ client, plans, onClientUpdate }) {
 // own current meaning (self/arrived_known/coach_agreed) is different text
 // -- real coaching signal, never an error, never resolved automatically.
 // See database/schema.sql's comment on symbol_meanings.
+//
+// This is exact-string comparison, not semantic -- two readings that say
+// the same thing in different words will still surface as "divergent."
+// That's an accepted v1 simplification: this list is only ever a prompt
+// for the coach to glance at, never a gate on anything, so a false
+// positive just costs a look at two rows that already agree.
 function findDivergentSymbols(meanings) {
   const byTag = {};
   for (const m of meanings) {
@@ -346,6 +353,7 @@ function ClientDetail({ client, plans, onClientUpdate }) {
   const [notes, setNotes] = useState([]);
   const [validatedTags, setValidatedTags] = useState([]);
   const [symbolMeanings, setSymbolMeanings] = useState([]);
+  const [resolvedTags, setResolvedTags] = useState([]);
   const [newNote, setNewNote] = useState("");
 
   useEffect(() => {
@@ -364,6 +372,15 @@ function ClientDetail({ client, plans, onClientUpdate }) {
       .then((note) => setNotes((cur) => [note, ...cur]))
       .catch((err) => console.error("Failed to add coach note:", err));
     setNewNote("");
+  };
+
+  const resolveTag = (tag) => {
+    const wasResolved = resolvedTags.includes(tag);
+    setResolvedTags((cur) => wasResolved ? cur.filter((t) => t !== tag) : [...cur, tag]);
+    updateSymbolResolved(client.id, tag, !wasResolved).catch((err) => {
+      console.error("Failed to update symbol status:", err);
+      setResolvedTags((cur) => wasResolved ? [...cur, tag] : cur.filter((t) => t !== tag));
+    });
   };
 
   const toggleTag = (tag) => {
@@ -389,13 +406,30 @@ function ClientDetail({ client, plans, onClientUpdate }) {
             never something Edin brings up on her own.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {divergentSymbols.map(({ tag, coachReading, currentOwn }) => (
-              <div key={tag} style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "10px 14px" }}>
-                <div style={{ fontSize: 12.5, color: COLORS.ink, marginBottom: 6 }}>#{tag}</div>
-                <div style={{ fontSize: 11.5, color: COLORS.inkDim }}>Your reading: <span style={{ color: COLORS.ink }}>"{coachReading.meaning}"</span></div>
-                <div style={{ fontSize: 11.5, color: COLORS.inkDim, marginTop: 3 }}>Their current meaning: <span style={{ color: COLORS.ink }}>"{currentOwn.meaning}"</span></div>
-              </div>
-            ))}
+            {divergentSymbols.map(({ tag, coachReading, currentOwn }) => {
+              const resolved = resolvedTags.includes(tag);
+              return (
+                <div key={tag} style={{ background: COLORS.bgPanelAlt, borderRadius: 10, padding: "10px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ fontSize: 12.5, color: COLORS.ink }}>#{tag}</div>
+                    <button
+                      onClick={() => resolveTag(tag)}
+                      title="Mark this symbol as released/resolved for this client -- a plain toggle, no ritual gate yet"
+                      style={{
+                        fontSize: 9.5, padding: "2px 8px", borderRadius: 999, cursor: "pointer",
+                        border: `1px solid ${resolved ? COLORS.teal : COLORS.grid}`,
+                        background: resolved ? `${COLORS.teal}22` : "transparent",
+                        color: resolved ? COLORS.teal : COLORS.inkDim,
+                      }}
+                    >
+                      {resolved ? "✓ Resolved" : "Mark resolved"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkDim }}>Your reading: <span style={{ color: COLORS.ink }}>"{coachReading.meaning}"</span></div>
+                  <div style={{ fontSize: 11.5, color: COLORS.inkDim, marginTop: 3 }}>Their current meaning: <span style={{ color: COLORS.ink }}>"{currentOwn.meaning}"</span></div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
